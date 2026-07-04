@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SuggestionsRouteImport } from './routes/suggestions'
+import { Route as PromotionsRouteImport } from './routes/promotions'
 import { Route as IndexRouteImport } from './routes/index'
 
 const SuggestionsRoute = SuggestionsRouteImport.update({
   id: '/suggestions',
   path: '/suggestions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PromotionsRoute = PromotionsRouteImport.update({
+  id: '/promotions',
+  path: '/promotions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -25,27 +31,31 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/promotions': typeof PromotionsRoute
   '/suggestions': typeof SuggestionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/promotions': typeof PromotionsRoute
   '/suggestions': typeof SuggestionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/promotions': typeof PromotionsRoute
   '/suggestions': typeof SuggestionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/suggestions'
+  fullPaths: '/' | '/promotions' | '/suggestions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/suggestions'
-  id: '__root__' | '/' | '/suggestions'
+  to: '/' | '/promotions' | '/suggestions'
+  id: '__root__' | '/' | '/promotions' | '/suggestions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PromotionsRoute: typeof PromotionsRoute
   SuggestionsRoute: typeof SuggestionsRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/suggestions'
       fullPath: '/suggestions'
       preLoaderRoute: typeof SuggestionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/promotions': {
+      id: '/promotions'
+      path: '/promotions'
+      fullPath: '/promotions'
+      preLoaderRoute: typeof PromotionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PromotionsRoute: PromotionsRoute,
   SuggestionsRoute: SuggestionsRoute,
 }
 export const routeTree = rootRouteImport
