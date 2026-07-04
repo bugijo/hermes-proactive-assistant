@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { hermesPc } from "@/lib/mock-data";
+import { usePcStatus } from "@/hooks/use-hermes-data";
 import { Monitor, RefreshCw, Brain, Folder, Terminal, HardDrive } from "lucide-react";
 
 export const Route = createFileRoute("/pc")({
@@ -16,6 +16,7 @@ const iconMap = {
 } as const;
 
 function PcPage() {
+  const { data: hermesPc } = usePcStatus();
   const { connected, ip, lastSync, tasks, modules } = hermesPc;
 
   return (
@@ -73,7 +74,10 @@ function PcPage() {
         <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Tarefas enviadas ao PC</h2>
         <ul className="space-y-2">
           {tasks.map((t) => (
-            <li key={t.id} className="glass-card flex items-center justify-between gap-3 rounded-2xl p-3">
+            <li
+              key={t.id}
+              className="glass-card flex items-center justify-between gap-3 rounded-2xl p-3"
+            >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{t.title}</p>
                 <p className="text-[10px] text-muted-foreground">{t.time}</p>
@@ -84,8 +88,8 @@ function PcPage() {
                   (t.status === "Concluída"
                     ? "bg-[color:var(--success)]/20 text-[color:var(--success)]"
                     : t.status === "Em execução"
-                    ? "bg-primary/20 text-primary"
-                    : "bg-muted text-muted-foreground")
+                      ? "bg-primary/20 text-primary"
+                      : "bg-muted text-muted-foreground")
                 }
               >
                 {t.status}

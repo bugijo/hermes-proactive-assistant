@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { suggestions, type Suggestion } from "@/lib/mock-data";
+import { useSuggestions } from "@/hooks/use-hermes-data";
+import type { Suggestion } from "@/types/hermes";
 import { Check, X, Clock, Info, Tag, Bell, MessageSquare, ListTodo } from "lucide-react";
 import { useState } from "react";
 
@@ -24,6 +25,7 @@ const labelMap: Record<Suggestion["type"], string> = {
 };
 
 function SuggestionsPage() {
+  const { data: suggestions } = useSuggestions();
   const [handled, setHandled] = useState<Record<string, "approved" | "ignored" | "later">>({});
 
   return (
@@ -62,9 +64,22 @@ function SuggestionsPage() {
                 </p>
               ) : (
                 <div className="mt-3 grid grid-cols-4 gap-2">
-                  <ActionBtn onClick={() => setHandled((h) => ({ ...h, [s.id]: "approved" }))} icon={<Check className="h-4 w-4" />} label="Aprovar" primary />
-                  <ActionBtn onClick={() => setHandled((h) => ({ ...h, [s.id]: "ignored" }))} icon={<X className="h-4 w-4" />} label="Ignorar" />
-                  <ActionBtn onClick={() => setHandled((h) => ({ ...h, [s.id]: "later" }))} icon={<Clock className="h-4 w-4" />} label="Depois" />
+                  <ActionBtn
+                    onClick={() => setHandled((h) => ({ ...h, [s.id]: "approved" }))}
+                    icon={<Check className="h-4 w-4" />}
+                    label="Aprovar"
+                    primary
+                  />
+                  <ActionBtn
+                    onClick={() => setHandled((h) => ({ ...h, [s.id]: "ignored" }))}
+                    icon={<X className="h-4 w-4" />}
+                    label="Ignorar"
+                  />
+                  <ActionBtn
+                    onClick={() => setHandled((h) => ({ ...h, [s.id]: "later" }))}
+                    icon={<Clock className="h-4 w-4" />}
+                    label="Depois"
+                  />
                   <ActionBtn icon={<Info className="h-4 w-4" />} label="Detalhes" />
                 </div>
               )}
