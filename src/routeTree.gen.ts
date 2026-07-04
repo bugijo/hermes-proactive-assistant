@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SuggestionsRouteImport } from './routes/suggestions'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SecurityRouteImport } from './routes/security'
 import { Route as PromotionsRouteImport } from './routes/promotions'
 import { Route as PcRouteImport } from './routes/pc'
@@ -21,6 +22,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const SuggestionsRoute = SuggestionsRouteImport.update({
   id: '/suggestions',
   path: '/suggestions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SecurityRoute = SecurityRouteImport.update({
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/pc': typeof PcRoute
   '/promotions': typeof PromotionsRoute
   '/security': typeof SecurityRoute
+  '/settings': typeof SettingsRoute
   '/suggestions': typeof SuggestionsRoute
 }
 export interface FileRoutesByTo {
@@ -77,6 +84,7 @@ export interface FileRoutesByTo {
   '/pc': typeof PcRoute
   '/promotions': typeof PromotionsRoute
   '/security': typeof SecurityRoute
+  '/settings': typeof SettingsRoute
   '/suggestions': typeof SuggestionsRoute
 }
 export interface FileRoutesById {
@@ -88,6 +96,7 @@ export interface FileRoutesById {
   '/pc': typeof PcRoute
   '/promotions': typeof PromotionsRoute
   '/security': typeof SecurityRoute
+  '/settings': typeof SettingsRoute
   '/suggestions': typeof SuggestionsRoute
 }
 export interface FileRouteTypes {
@@ -100,6 +109,7 @@ export interface FileRouteTypes {
     | '/pc'
     | '/promotions'
     | '/security'
+    | '/settings'
     | '/suggestions'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -110,6 +120,7 @@ export interface FileRouteTypes {
     | '/pc'
     | '/promotions'
     | '/security'
+    | '/settings'
     | '/suggestions'
   id:
     | '__root__'
@@ -120,6 +131,7 @@ export interface FileRouteTypes {
     | '/pc'
     | '/promotions'
     | '/security'
+    | '/settings'
     | '/suggestions'
   fileRoutesById: FileRoutesById
 }
@@ -131,6 +143,7 @@ export interface RootRouteChildren {
   PcRoute: typeof PcRoute
   PromotionsRoute: typeof PromotionsRoute
   SecurityRoute: typeof SecurityRoute
+  SettingsRoute: typeof SettingsRoute
   SuggestionsRoute: typeof SuggestionsRoute
 }
 
@@ -141,6 +154,13 @@ declare module '@tanstack/react-router' {
       path: '/suggestions'
       fullPath: '/suggestions'
       preLoaderRoute: typeof SuggestionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/security': {
@@ -203,6 +223,7 @@ const rootRouteChildren: RootRouteChildren = {
   PcRoute: PcRoute,
   PromotionsRoute: PromotionsRoute,
   SecurityRoute: SecurityRoute,
+  SettingsRoute: SettingsRoute,
   SuggestionsRoute: SuggestionsRoute,
 }
 export const routeTree = rootRouteImport

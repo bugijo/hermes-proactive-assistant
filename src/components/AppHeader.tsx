@@ -14,7 +14,7 @@ export function AppHeader({ title, subtitle, showSettings = true }: Props) {
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl gradient-primary glow">
-            <Sparkles className="h-4.5 w-4.5 text-primary-foreground" />
+            <Sparkles className="h-4 w-4 text-primary-foreground" />
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold leading-tight">
