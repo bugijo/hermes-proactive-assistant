@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { securitySettings } from "@/lib/mock-data";
+import { useSecuritySettings } from "@/hooks/use-hermes-data";
 import { PauseCircle, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
@@ -10,6 +10,7 @@ export const Route = createFileRoute("/security")({
 });
 
 function SecurityPage() {
+  const { data: securitySettings } = useSecuritySettings();
   const [items, setItems] = useState(securitySettings);
   const [paused, setPaused] = useState(false);
 
@@ -23,13 +24,17 @@ function SecurityPage() {
           <ShieldCheck className="h-5 w-5" />
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Suas preferências são aplicadas em toda ação do Hermes. Ele nunca envia, compra ou apaga sem sua confirmação.
+          Suas preferências são aplicadas em toda ação do Hermes. Ele nunca envia, compra ou apaga
+          sem sua confirmação.
         </p>
       </div>
 
       <ul className="mb-6 space-y-2">
         {items.map((s, i) => (
-          <li key={s.id} className="glass-card flex items-center justify-between gap-3 rounded-2xl p-3.5">
+          <li
+            key={s.id}
+            className="glass-card flex items-center justify-between gap-3 rounded-2xl p-3.5"
+          >
             <div className="min-w-0">
               <p className="text-sm font-semibold">{s.title}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">{s.description}</p>
@@ -37,7 +42,9 @@ function SecurityPage() {
             <button
               role="switch"
               aria-checked={s.enabled}
-              onClick={() => setItems((cur) => cur.map((x, j) => (j === i ? { ...x, enabled: !x.enabled } : x)))}
+              onClick={() =>
+                setItems((cur) => cur.map((x, j) => (j === i ? { ...x, enabled: !x.enabled } : x)))
+              }
               className={
                 "relative h-7 w-12 shrink-0 rounded-full border border-border transition-colors " +
                 (s.enabled ? "gradient-primary glow" : "bg-background/60")

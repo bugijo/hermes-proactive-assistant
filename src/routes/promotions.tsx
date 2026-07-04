@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { offers, promotionCategories, type OfferStatus } from "@/lib/mock-data";
+import { useOffers } from "@/hooks/use-hermes-data";
+import type { OfferStatus } from "@/types/hermes";
 import { ExternalLink, Bell, Star } from "lucide-react";
 import { useState } from "react";
 
@@ -17,8 +18,10 @@ const statusStyles: Record<OfferStatus, string> = {
 };
 
 function PromotionsPage() {
+  const { data } = useOffers();
   const [category, setCategory] = useState<string>("Todos");
-  const filtered = category === "Todos" ? offers : offers.filter((o) => o.category === category);
+  const filtered =
+    category === "Todos" ? data.offers : data.offers.filter((o) => o.category === category);
 
   return (
     <MobileShell>
@@ -29,7 +32,7 @@ function PromotionsPage() {
 
       <div className="-mx-4 mb-4 overflow-x-auto px-4">
         <div className="flex gap-2">
-          {["Todos", ...promotionCategories].map((c) => (
+          {["Todos", ...data.categories].map((c) => (
             <button
               key={c}
               onClick={() => setCategory(c)}
@@ -51,10 +54,17 @@ function PromotionsPage() {
           <li key={o.id} className="glass-card rounded-3xl p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{o.category}</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {o.category}
+                </p>
                 <p className="truncate text-sm font-semibold">{o.name}</p>
               </div>
-              <span className={"shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold " + statusStyles[o.status]}>
+              <span
+                className={
+                  "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold " +
+                  statusStyles[o.status]
+                }
+              >
                 {o.status}
               </span>
             </div>
@@ -88,11 +98,21 @@ function PromotionsPage() {
   );
 }
 
-function PriceCell({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function PriceCell({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
   return (
     <div className="rounded-xl border border-border bg-background/40 px-2 py-2 text-center">
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={"text-sm font-bold " + (highlight ? "text-gradient" : "text-foreground")}>{value}</p>
+      <p className={"text-sm font-bold " + (highlight ? "text-gradient" : "text-foreground")}>
+        {value}
+      </p>
     </div>
   );
 }
