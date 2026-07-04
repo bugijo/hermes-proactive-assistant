@@ -1,0 +1,90 @@
+export type HermesState = "Ativo" | "Dormindo" | "Economia de bateria";
+export type ConnectionType = "Wi-Fi" | "Dados móveis";
+
+export interface UserProfile {
+  name: string;
+}
+export interface HermesStatus {
+  state: HermesState;
+  battery: number;
+  connection: ConnectionType;
+  pending: number;
+}
+export type SuggestionType = "promo" | "reminder" | "message" | "task";
+export interface Suggestion {
+  id: string;
+  type: SuggestionType;
+  title: string;
+  description: string;
+  time: string;
+}
+export type OfferStatus = "Comprar agora" | "Esperar" | "Ruim" | "Suspeita";
+export interface Offer {
+  id: string;
+  category: string;
+  name: string;
+  price: number;
+  target: number;
+  score: number;
+  status: OfferStatus;
+  url: string;
+}
+export type BatteryImpact = "baixo" | "médio" | "alto";
+export interface Automation {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  frequency: string;
+  impact: BatteryImpact;
+  permissions: string[];
+}
+export interface DevicePermission {
+  id: string;
+  title: string;
+  description: string;
+  granted: boolean;
+}
+export interface PcTask {
+  id: string;
+  title: string;
+  status: "Enviada" | "Concluída" | "Em execução";
+  time: string;
+}
+export interface PcModule {
+  id: string;
+  name: string;
+  description: string;
+  icon: "brain" | "folder" | "terminal" | "hard-drive";
+}
+export interface HermesPcStatus {
+  connected: boolean;
+  ip: string;
+  lastSync: string;
+  tasks: PcTask[];
+  modules: PcModule[];
+}
+export interface SecuritySetting {
+  id: string;
+  title: string;
+  description: string;
+  enabled: boolean;
+}
+export interface ChatMessage {
+  id: string;
+  role: "user" | "hermes";
+  text: string;
+  card?: { title: string; description: string };
+}
+export interface HermesSnapshot {
+  user: UserProfile;
+  status: HermesStatus;
+  suggestions: Suggestion[];
+  offers: Offer[];
+  promotionCategories: string[];
+  automations: Automation[];
+  devicePermissions: DevicePermission[];
+  pc: HermesPcStatus;
+  securitySettings: SecuritySetting[];
+  initialChat: ChatMessage[];
+}

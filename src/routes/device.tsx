@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { devicePermissions } from "@/lib/mock-data";
+import { devicePermissions } from "@/services/mock-hermes-data";
 import { ShieldCheck, Check, X } from "lucide-react";
 import { useState } from "react";
 
@@ -25,7 +25,8 @@ function DevicePage() {
             <ShieldCheck className="h-5 w-5 text-primary-foreground" />
           </div>
           <p className="text-sm leading-relaxed">
-            <span className="font-semibold">O Hermes sempre pedirá confirmação</span> antes de enviar, comprar ou apagar algo.
+            <span className="font-semibold">O Hermes sempre pedirá confirmação</span> antes de
+            enviar, comprar ou apagar algo.
           </p>
         </div>
       </div>
@@ -40,7 +41,9 @@ function DevicePage() {
               </div>
               <button
                 onClick={() =>
-                  setPerms((cur) => cur.map((x, j) => (j === i ? { ...x, granted: !x.granted } : x)))
+                  setPerms((cur) =>
+                    cur.map((x, j) => (j === i ? { ...x, granted: !x.granted } : x)),
+                  )
                 }
                 className={
                   "flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors " +

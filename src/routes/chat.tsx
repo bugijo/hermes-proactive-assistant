@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { initialChat, type ChatMessage } from "@/lib/mock-data";
+import { initialChat, type ChatMessage } from "@/services/mock-hermes-data";
 import { Send, Sparkles, Tag, Bell, Search, AppWindow, Monitor } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
@@ -66,7 +66,10 @@ function ChatPage() {
 
       <ul className="space-y-3 pb-4">
         {messages.map((m) => (
-          <li key={m.id} className={m.role === "user" ? "flex justify-end" : "flex items-start gap-2"}>
+          <li
+            key={m.id}
+            className={m.role === "user" ? "flex justify-end" : "flex items-start gap-2"}
+          >
             {m.role === "hermes" && (
               <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl gradient-primary glow">
                 <Sparkles className="h-4 w-4 text-primary-foreground" />

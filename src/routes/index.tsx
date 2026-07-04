@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { hermesStatus, suggestions, userName } from "@/lib/mock-data";
+import { hermesStatus, suggestions, userName } from "@/services/mock-hermes-data";
 import {
   BatteryMedium,
   Wifi,
@@ -18,7 +18,10 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Início — Hermes Mobile" },
-      { name: "description", content: "Painel principal do Hermes Mobile, seu assistente pessoal proativo." },
+      {
+        name: "description",
+        content: "Painel principal do Hermes Mobile, seu assistente pessoal proativo.",
+      },
     ],
   }),
   component: Dashboard,
@@ -57,9 +60,19 @@ function Dashboard() {
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <StatusChip icon={<BatteryMedium className="h-4 w-4" />} label="Bateria" value={`${s.battery}%`} />
           <StatusChip
-            icon={s.connection === "Wi-Fi" ? <Wifi className="h-4 w-4" /> : <Signal className="h-4 w-4" />}
+            icon={<BatteryMedium className="h-4 w-4" />}
+            label="Bateria"
+            value={`${s.battery}%`}
+          />
+          <StatusChip
+            icon={
+              s.connection === "Wi-Fi" ? (
+                <Wifi className="h-4 w-4" />
+              ) : (
+                <Signal className="h-4 w-4" />
+              )
+            }
             label="Conexão"
             value={s.connection}
           />
@@ -112,7 +125,9 @@ function Dashboard() {
             <li key={s.id} className="glass-card rounded-2xl p-3">
               <p className="line-clamp-1 text-sm font-semibold">{s.title}</p>
               <p className="line-clamp-2 text-xs text-muted-foreground">{s.description}</p>
-              <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground/70">{s.time}</p>
+              <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                {s.time}
+              </p>
             </li>
           ))}
         </ul>
@@ -128,10 +143,20 @@ function Dashboard() {
   );
 }
 
-function StatusChip({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function StatusChip({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
     <div className="flex items-center gap-2.5 rounded-2xl border border-border bg-background/40 px-3 py-2.5">
-      <div className="grid h-8 w-8 place-items-center rounded-xl bg-primary/15 text-primary">{icon}</div>
+      <div className="grid h-8 w-8 place-items-center rounded-xl bg-primary/15 text-primary">
+        {icon}
+      </div>
       <div className="min-w-0">
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
         <p className="truncate text-sm font-semibold">{value}</p>
@@ -146,7 +171,9 @@ function QuickTile({ to, icon, label }: { to: string; icon: React.ReactNode; lab
       to={to}
       className="glass-card flex flex-col items-center gap-2 rounded-2xl p-3 text-center transition-transform active:scale-95"
     >
-      <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/15 text-primary">{icon}</div>
+      <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/15 text-primary">
+        {icon}
+      </div>
       <span className="text-xs font-medium">{label}</span>
     </Link>
   );

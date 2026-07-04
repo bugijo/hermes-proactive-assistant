@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { registerServiceWorker } from "../lib/register-service-worker";
 
 function NotFoundComponent() {
   return (
@@ -79,7 +80,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "theme-color", content: "#0b0d1a" },
       { title: "Hermes Mobile — Seu assistente pessoal proativo" },
-      { name: "description", content: "Hermes Mobile é um assistente pessoal inteligente para Android que monitora promoções, sugere ações e conversa com você — sempre com confirmação." },
+      {
+        name: "description",
+        content:
+          "Hermes Mobile é um assistente pessoal inteligente para Android que monitora promoções, sugere ações e conversa com você — sempre com confirmação.",
+      },
       { property: "og:title", content: "Hermes Mobile" },
       { property: "og:description", content: "Seu assistente pessoal proativo." },
       { property: "og:type", content: "website" },
@@ -88,6 +93,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/icons/icon-192.svg" },
     ],
   }),
   shellComponent: RootShell,
@@ -112,6 +119,10 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    registerServiceWorker();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
