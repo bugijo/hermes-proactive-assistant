@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { automations, type BatteryImpact } from "@/lib/mock-data";
+import { automations, type BatteryImpact } from "@/services/mock-hermes-data";
 import { useState } from "react";
 import { Battery, Clock, ShieldCheck } from "lucide-react";
 
@@ -35,10 +35,7 @@ function AutomationsPage() {
                   <p className="text-sm font-semibold">{a.name}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{a.description}</p>
                 </div>
-                <Toggle
-                  on={on}
-                  onChange={() => setState((s) => ({ ...s, [a.id]: !s[a.id] }))}
-                />
+                <Toggle on={on} onChange={() => setState((s) => ({ ...s, [a.id]: !s[a.id] }))} />
               </div>
 
               <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
@@ -47,12 +44,18 @@ function AutomationsPage() {
                   icon={<Battery className={"h-3.5 w-3.5 " + impactStyles[a.impact]} />}
                   label={`Bateria: ${a.impact}`}
                 />
-                <MetaCell icon={<ShieldCheck className="h-3.5 w-3.5" />} label={`${a.permissions.length} perm.`} />
+                <MetaCell
+                  icon={<ShieldCheck className="h-3.5 w-3.5" />}
+                  label={`${a.permissions.length} perm.`}
+                />
               </div>
 
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {a.permissions.map((p) => (
-                  <span key={p} className="rounded-full border border-border bg-background/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                  <span
+                    key={p}
+                    className="rounded-full border border-border bg-background/40 px-2 py-0.5 text-[10px] text-muted-foreground"
+                  >
                     {p}
                   </span>
                 ))}

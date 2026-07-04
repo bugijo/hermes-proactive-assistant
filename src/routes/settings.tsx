@@ -8,8 +8,18 @@ export const Route = createFileRoute("/settings")({
 });
 
 const items = [
-  { to: "/security", icon: ShieldCheck, title: "Segurança", desc: "Regras de confirmação e privacidade" },
-  { to: "/device", icon: Smartphone, title: "Controle do celular", desc: "Permissões do Hermes no Android" },
+  {
+    to: "/security",
+    icon: ShieldCheck,
+    title: "Segurança",
+    desc: "Regras de confirmação e privacidade",
+  },
+  {
+    to: "/device",
+    icon: Smartphone,
+    title: "Controle do celular",
+    desc: "Permissões do Hermes no Android",
+  },
   { to: "/pc", icon: Monitor, title: "Hermes PC", desc: "Sincronização com o desktop" },
 ] as const;
 
@@ -43,7 +53,9 @@ function SettingsPage() {
         <Info className="h-5 w-5 shrink-0 text-primary" />
         <div>
           <p className="text-sm font-semibold">Hermes Mobile</p>
-          <p className="text-xs text-muted-foreground">Versão 0.1.0 · Frontend com dados fictícios.</p>
+          <p className="text-xs text-muted-foreground">
+            Versão 0.1.0 · Frontend com dados fictícios.
+          </p>
         </div>
       </div>
     </MobileShell>
