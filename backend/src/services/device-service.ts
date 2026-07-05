@@ -1,5 +1,5 @@
 import { deviceRepository } from "../repositories/device-repository";
-import { hashSecret, randomToken } from "../utils/crypto";
+import { hashToken, randomToken } from "../utils/crypto";
 
 export const deviceService = {
   listDevices: deviceRepository.list,
@@ -27,7 +27,7 @@ export const deviceService = {
       deviceName: input.deviceName,
       deviceType: input.deviceType ?? "mobile",
       publicKey: input.publicKey ?? randomToken("mobile_pub"),
-      tokenHash: await hashSecret(token),
+      tokenHash: await hashToken(token),
     });
     if (!id) throw new Error("PAIRING_CODE_INVALID");
     return { id, token };

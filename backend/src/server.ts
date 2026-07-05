@@ -1,5 +1,7 @@
 import { handleHttpRoute } from "./routes/http-routes";
-import { jsonHeaders, json } from "./utils/http";
+import { jsonHeaders, errorJson, ApiError } from "./utils/http";
+import { bearerToken } from "./middleware/auth";
+import { authService } from "./services/auth-service";
 
 const port = Number(process.env.HERMES_API_PORT ?? 8787);
 const sockets = new Set<ServerWebSocket>();
@@ -19,21 +21,22 @@ const server = Bun.serve<{ authenticated?: boolean }>({
 
     const url = new URL(request.url);
     if (url.pathname === "/ws") {
+      const token = bearerToken(request);
+      const authenticated = token ? await authService.authenticate(token) : null;
+      if (!authenticated)
+        return errorJson(new ApiError(401, "UNAUTHORIZED", "Sessão inválida para WebSocket."));
       const upgraded = server.upgrade(request, { data: { authenticated: true } });
-      return upgraded ? undefined : json({ error: "WebSocket upgrade failed" }, { status: 400 });
+      return upgraded
+        ? undefined
+        : errorJson(new ApiError(400, "WEBSOCKET_UPGRADE_FAILED", "Falha ao abrir WebSocket."));
     }
 
     try {
       const response = await handleHttpRoute(request, publish);
-      return response ?? json({ error: "Not found" }, { status: 404 });
+      return response ?? errorJson(new ApiError(404, "NOT_FOUND", "Endpoint não encontrado."));
     } catch (error) {
-      console.error(error);
-      const message = error instanceof Error ? error.message : "Internal server error";
-      const status =
-        message.includes("INVALID") || message.includes("MISSING") || message.includes("EXISTS")
-          ? 400
-          : 500;
-      return json({ error: message }, { status });
+      if (!(error instanceof ApiError)) console.error(error);
+      return errorJson(error instanceof Error ? error : new Error("Internal server error"));
     }
   },
   websocket: {

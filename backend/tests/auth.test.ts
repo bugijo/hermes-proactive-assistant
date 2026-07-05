@@ -1,15 +1,16 @@
 import { expect, test } from "bun:test";
-import { hashSecret, signJwt, verifyJwt, verifySecret } from "../src/utils/crypto";
+import { hashPassword, hashToken, verifyPassword } from "../src/utils/crypto";
 
-test("hashSecret verifies valid secrets and rejects invalid ones", async () => {
-  const stored = await hashSecret("1234");
-  expect(await verifySecret("1234", stored)).toBe(true);
-  expect(await verifySecret("0000", stored)).toBe(false);
+test("Argon2id protege e verifica senhas", async () => {
+  const stored = await hashPassword("uma-senha-local-forte");
+  expect(stored).not.toContain("uma-senha-local-forte");
+  expect(await verifyPassword("uma-senha-local-forte", stored)).toBe(true);
+  expect(await verifyPassword("senha-incorreta", stored)).toBe(false);
 });
 
-test("JWT signing and verification round trip", async () => {
-  const token = await signJwt({ sub: "user-1" }, "test-secret", 60);
-  const payload = await verifyJwt<{ sub: string }>(token, "test-secret");
-  expect(payload?.sub).toBe("user-1");
-  expect(await verifyJwt(token, "wrong-secret")).toBeNull();
+test("tokens são persistidos apenas como SHA-256", async () => {
+  const token = "hermes_token_secreto";
+  const digest = await hashToken(token);
+  expect(digest).not.toContain(token);
+  expect(digest).toHaveLength(64);
 });

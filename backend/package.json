@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "bun --watch src/server.ts",
     "start": "bun src/server.ts",
-    "seed": "bun src/database/index.ts"
+    "seed": "HERMES_SEED=true bun src/database/index.ts",
+    "test": "bun test tests"
   },
   "dependencies": {},
   "devDependencies": {}

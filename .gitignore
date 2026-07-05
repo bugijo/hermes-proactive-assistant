@@ -15,6 +15,9 @@ dist-ssr
 .tanstack/**
 .nitro
 *.local
+.env
+.env.*
+!.env.example
 
 # Wrangler / Cloudflare
 .wrangler/
@@ -33,3 +36,5 @@ dist-ssr
 
 # Local Hermes API database
 backend/data/*.sqlite*
+backend/data/*.db*
+backend/coverage/

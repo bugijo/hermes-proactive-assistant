@@ -1,23 +1,49 @@
-import { promotionCategories, user } from "../../../src/services/mock-hermes-data";
-import { repositories } from "../database";
-import type { ChatMessage } from "../../../src/types/hermes";
+import { promotionCategories } from "../../../src/services/mock-hermes-data";
+import { db } from "../database";
+import { requireAuth, bearerToken } from "../middleware/auth";
+import { domainRepository } from "../repositories/domain-repository";
+import { taskRepository } from "../repositories/task-repository";
 import { authService } from "../services/auth-service";
 import { deviceService } from "../services/device-service";
-import { taskRepository } from "../repositories/task-repository";
-import { json, readJson } from "../utils/http";
+import { ApiError, json, readJson } from "../utils/http";
 
-function snapshot() {
+const resourceId = (path: string, resource: string) => {
+  const match = path.match(new RegExp(`^/api/${resource}/([^/]+)$`));
+  return match?.[1];
+};
+const confirmation = (value: unknown): "draft" | "pending_confirmation" | "confirmed" =>
+  value === "draft" || value === "pending_confirmation" || value === "confirmed"
+    ? value
+    : "confirmed";
+
+function pcStatus() {
+  const row = db
+    .query(
+      "SELECT connected,ip,last_sync AS lastSync,metadata FROM devices WHERE id='hermes-pc-local'",
+    )
+    .get() as { connected: number; ip?: string; lastSync?: string; metadata?: string } | null;
+  const metadata = row?.metadata ? JSON.parse(row.metadata) : { tasks: [], modules: [] };
   return {
-    user,
-    status: repositories.status(),
-    suggestions: repositories.suggestions(),
-    offers: repositories.promotions(),
+    connected: Boolean(row?.connected),
+    ip: row?.ip ?? "local",
+    lastSync: row?.lastSync ?? "nunca",
+    tasks: metadata.tasks ?? [],
+    modules: metadata.modules ?? [],
+  };
+}
+
+function snapshot(user: { name: string }) {
+  return {
+    user: { name: user.name },
+    status: domainRepository.status(),
+    suggestions: domainRepository.suggestions(),
+    offers: domainRepository.promotions(),
     promotionCategories,
-    automations: repositories.automations(),
-    devicePermissions: repositories.permissions(),
-    pc: repositories.pcStatus(),
-    securitySettings: repositories.securitySettings(),
-    initialChat: repositories.chatMessages(),
+    automations: domainRepository.automations(),
+    devicePermissions: domainRepository.permissions(),
+    pc: pcStatus(),
+    securitySettings: domainRepository.securitySettings(),
+    initialChat: domainRepository.chatMessages(),
     metrics: taskRepository.metrics(),
     tasks: taskRepository.listTasks(),
     devices: deviceService.listDevices(),
@@ -29,146 +55,281 @@ export async function handleHttpRoute(
   request: Request,
   publish: (topic: string, payload: unknown) => void,
 ) {
-  const url = new URL(request.url);
-  const path = url.pathname.replace(/\/$/, "") || "/";
+  const path = new URL(request.url).pathname.replace(/\/$/, "") || "/";
+  const method = request.method;
 
-  if (request.method === "GET" && path === "/health")
+  if (method === "GET" && path === "/health")
     return json({ ok: true, service: "hermes-mobile-api" });
-
-  if (request.method === "GET" && path === "/api/auth/status") return json(authService.status());
-  if (request.method === "POST" && path === "/api/auth/register")
+  if (method === "GET" && path === "/api/auth/status") return json(authService.status());
+  if (method === "POST" && path === "/api/auth/register")
     return json(await authService.registerFirstUser(await readJson(request)), { status: 201 });
-  if (request.method === "POST" && path === "/api/auth/login")
+  if (method === "POST" && path === "/api/auth/login")
     return json(await authService.login(await readJson(request)));
-  if (request.method === "POST" && path === "/api/auth/unlock")
-    return json(await authService.unlock(await readJson(request)));
 
-  if (request.method === "GET" && path === "/api/snapshot") return json(snapshot());
-  if (request.method === "GET" && path === "/api/status") return json(repositories.status());
-  if (request.method === "GET" && path === "/api/dashboard") return json(taskRepository.metrics());
-  if (request.method === "GET" && path === "/api/suggestions")
-    return json(repositories.suggestions());
-  if (request.method === "GET" && path === "/api/promotions")
-    return json({ categories: promotionCategories, offers: repositories.promotions() });
-  if (request.method === "GET" && path === "/api/automations")
-    return json(repositories.automations());
-  if (request.method === "GET" && path === "/api/permissions")
-    return json(repositories.permissions());
-  if (request.method === "GET" && path === "/api/chat") return json(repositories.chatMessages());
-  if (request.method === "GET" && path === "/api/pc") return json(repositories.pcStatus());
-  if (request.method === "GET" && path === "/api/pc/sync") {
-    repositories.logAction({
-      action: "pc.sync.requested",
-      entityType: "device",
-      entityId: "hermes-pc-local",
+  const auth = await requireAuth(request);
+  const audit = (
+    action: string,
+    entityType?: string,
+    entityId?: string,
+    confirmationStatus: "draft" | "pending_confirmation" | "confirmed" = "confirmed",
+    details?: unknown,
+  ) =>
+    domainRepository.logAction({
+      userId: auth.user.id,
+      action,
+      entityType,
+      entityId,
+      confirmationStatus,
+      details,
     });
-    publish("sync", { type: "sync", pc: repositories.pcStatus() });
-    return json({ ok: true, pc: repositories.pcStatus() });
-  }
-  if (request.method === "GET" && path === "/api/action-logs")
-    return json(repositories.actionLogs());
 
-  if (request.method === "GET" && path === "/api/devices") return json(deviceService.listDevices());
-  if (request.method === "POST" && path === "/api/devices/pairing-code")
-    return json(deviceService.createPairingCode(), { status: 201 });
-  if (request.method === "POST" && path === "/api/devices/claim")
-    return json(await deviceService.claimPairingCode(await readJson(request)), { status: 201 });
-  if (request.method === "DELETE" && path.startsWith("/api/devices/")) {
-    const id = path.split("/").at(-1)!;
-    repositories.logAction({
-      action: "device.revoked",
-      entityType: "devices",
-      entityId: id,
-      sensitivity: "high",
-      requiresConfirmation: true,
-      confirmed: true,
-    });
-    return json(deviceService.revokeDevice(id));
-  }
-
-  if (request.method === "GET" && path === "/api/tasks") return json(taskRepository.listTasks());
-  if (request.method === "POST" && path === "/api/tasks")
-    return json(taskRepository.createTask(await readJson(request)), { status: 201 });
-  if ((request.method === "PUT" || request.method === "PATCH") && path.startsWith("/api/tasks/")) {
-    const updated = taskRepository.updateTask(path.split("/").at(-1)!, await readJson(request));
-    return updated ? json(updated) : json({ error: "Task not found" }, { status: 404 });
-  }
-  if (request.method === "DELETE" && path.startsWith("/api/tasks/")) {
-    const id = path.split("/").at(-1)!;
-    repositories.logAction({
-      action: "task.deleted",
-      entityType: "tasks",
-      entityId: id,
-      sensitivity: "normal",
-      requiresConfirmation: true,
-      confirmed: true,
-    });
-    taskRepository.deleteTask(id);
+  if (method === "POST" && path === "/api/auth/logout") {
+    await authService.logout(bearerToken(request)!);
     return json({ ok: true });
   }
+  if (method === "GET" && path === "/api/snapshot") return json(snapshot(auth.user));
+  if (method === "GET" && path === "/api/status") return json(domainRepository.status());
+  if (method === "GET" && path === "/api/dashboard") return json(taskRepository.metrics());
 
-  if (request.method === "GET" && path === "/api/notifications")
-    return json(taskRepository.listNotifications());
-  if (
-    request.method === "POST" &&
-    path.startsWith("/api/notifications/") &&
-    path.endsWith("/read")
-  ) {
-    const id = path.split("/").at(-2)!;
-    taskRepository.markNotificationRead(id);
-    return json({ ok: true });
+  if (path === "/api/suggestions") {
+    if (method === "GET") return json(domainRepository.suggestions());
+    if (method === "POST") {
+      const item = domainRepository.createSuggestion(await readJson(request));
+      audit("suggestion.created", "suggestions", item.id, "draft");
+      return json(item, { status: 201 });
+    }
   }
-
-  if (request.method === "POST" && path === "/api/chat") {
-    const body = await readJson<{ text?: string; confirmed?: boolean; sessionId?: string }>(
-      request,
+  const suggestionId = resourceId(path, "suggestions");
+  if (suggestionId && (method === "PATCH" || method === "PUT")) {
+    const body = await readJson<Record<string, unknown>>(request);
+    const item = domainRepository.updateSuggestion(suggestionId, body);
+    audit(
+      "suggestion.updated",
+      "suggestions",
+      suggestionId,
+      confirmation(body.confirmationStatus),
+      { state: body.state },
     );
-    const text = body.text?.trim();
-    if (!text) return json({ error: "Text is required" }, { status: 400 });
-
-    const userMessage: ChatMessage = { id: `u-${Date.now()}`, role: "user", text };
-    const hermesMessage: ChatMessage = {
-      id: `h-${Date.now()}`,
-      role: "hermes",
-      text: "Recebi pela API local. Vou preparar a ação e pedir confirmação antes de qualquer etapa sensível.",
-    };
-    repositories.addChatMessage(userMessage);
-    repositories.addChatMessage(hermesMessage);
-    repositories.logAction({
-      action: "chat.message.created",
-      entityType: "chat_messages",
-      entityId: hermesMessage.id,
-      sensitivity: "low",
-      requiresConfirmation: false,
-      confirmed: Boolean(body.confirmed),
-      details: { source: "local-api", sessionId: body.sessionId ?? "default" },
-    });
-    publish("chat", { type: "chat.message", message: hermesMessage });
-    return json(hermesMessage, { status: 201 });
+    return json(item);
+  }
+  if (suggestionId && method === "DELETE") {
+    domainRepository.deleteSuggestion(suggestionId);
+    audit("suggestion.deleted", "suggestions", suggestionId);
+    return json({ ok: true });
   }
 
-  if (request.method === "POST" && path === "/api/action-logs") {
+  if (path === "/api/promotions") {
+    if (method === "GET")
+      return json({ categories: promotionCategories, offers: domainRepository.promotions() });
+    if (method === "POST") {
+      const item = domainRepository.createPromotion(await readJson(request));
+      audit("promotion.created", "promotions", item.id, "confirmed");
+      return json(item, { status: 201 });
+    }
+  }
+  const promotionId = resourceId(path, "promotions");
+  if (promotionId && (method === "PATCH" || method === "PUT")) {
+    const item = domainRepository.updatePromotion(promotionId, await readJson(request));
+    audit("promotion.updated", "promotions", promotionId);
+    return json(item);
+  }
+  if (promotionId && method === "DELETE") {
+    domainRepository.deletePromotion(promotionId);
+    audit("promotion.deleted", "promotions", promotionId);
+    return json({ ok: true });
+  }
+
+  if (path === "/api/automations") {
+    if (method === "GET") return json(domainRepository.automations());
+    if (method === "POST") {
+      const item = domainRepository.createAutomation(await readJson(request));
+      audit("automation.created", "automations", item.id, "draft");
+      return json(item, { status: 201 });
+    }
+  }
+  const automationId = resourceId(path, "automations");
+  if (automationId && (method === "PATCH" || method === "PUT")) {
+    const body = await readJson<Record<string, unknown>>(request);
+    const item = domainRepository.updateAutomation(automationId, body);
+    audit(
+      "automation.updated",
+      "automations",
+      automationId,
+      confirmation(body.confirmationStatus),
+      { enabled: body.enabled },
+    );
+    return json(item);
+  }
+  if (automationId && method === "DELETE") {
+    domainRepository.deleteAutomation(automationId);
+    audit("automation.deleted", "automations", automationId);
+    return json({ ok: true });
+  }
+
+  if (path === "/api/permissions") {
+    if (method === "GET") return json(domainRepository.permissions());
+    if (method === "POST") {
+      const item = domainRepository.createPermission(await readJson(request));
+      audit("permission.created", "permissions", item.id);
+      return json(item, { status: 201 });
+    }
+  }
+  const permissionId = resourceId(path, "permissions");
+  if (permissionId && (method === "PATCH" || method === "PUT")) {
+    const body = await readJson<Record<string, unknown>>(request);
+    const item = domainRepository.updatePermission(permissionId, body);
+    audit(
+      "permission.updated",
+      "permissions",
+      permissionId,
+      confirmation(body.confirmationStatus),
+      { granted: body.granted },
+    );
+    return json(item);
+  }
+  if (permissionId && method === "DELETE") {
+    domainRepository.deletePermission(permissionId);
+    audit("permission.deleted", "permissions", permissionId);
+    return json({ ok: true });
+  }
+
+  if (path === "/api/security-settings") {
+    if (method === "GET") return json(domainRepository.securitySettings());
+    if (method === "POST") {
+      const item = domainRepository.createSecuritySetting(await readJson(request));
+      audit("security_setting.created", "security_settings", item.id);
+      return json(item, { status: 201 });
+    }
+  }
+  const securityId = resourceId(path, "security-settings");
+  if (securityId && (method === "PATCH" || method === "PUT")) {
+    const body = await readJson<Record<string, unknown>>(request);
+    const item = domainRepository.updateSecuritySetting(securityId, body);
+    audit(
+      "security_setting.updated",
+      "security_settings",
+      securityId,
+      confirmation(body.confirmationStatus),
+      { enabled: body.enabled },
+    );
+    return json(item);
+  }
+  if (securityId && method === "DELETE") {
+    domainRepository.deleteSecuritySetting(securityId);
+    audit("security_setting.deleted", "security_settings", securityId);
+    return json({ ok: true });
+  }
+
+  if (path === "/api/chat") {
+    if (method === "GET") return json(domainRepository.chatMessages());
+    if (method === "POST") {
+      const body = await readJson<{
+        text?: string;
+        sessionId?: string;
+        confirmationStatus?: "draft" | "pending_confirmation" | "confirmed";
+      }>(request);
+      const text = body.text?.trim();
+      if (!text) throw new ApiError(400, "TEXT_REQUIRED", "A mensagem não pode ficar vazia.");
+      const userMessage = domainRepository.addChatMessage({
+        role: "user",
+        text,
+        sessionId: body.sessionId,
+        confirmationStatus: body.confirmationStatus ?? "draft",
+      });
+      const reply = domainRepository.addChatMessage({
+        role: "hermes",
+        text: "Recebi. A solicitação ficou como rascunho local; qualquer ação sensível exigirá sua confirmação.",
+        sessionId: body.sessionId,
+        confirmationStatus: "draft",
+      });
+      audit(
+        "chat.message.created",
+        "chat_messages",
+        userMessage.id,
+        body.confirmationStatus ?? "draft",
+      );
+      publish("chat", { type: "chat.message", message: reply });
+      return json(reply, { status: 201 });
+    }
+  }
+  const chatId = resourceId(path, "chat");
+  if (chatId && (method === "PATCH" || method === "PUT")) {
+    const body = await readJson<Record<string, unknown>>(request);
+    const item = domainRepository.updateChatMessage(chatId, body);
+    audit("chat.message.updated", "chat_messages", chatId, confirmation(body.confirmationStatus));
+    return json(item);
+  }
+  if (chatId && method === "DELETE") {
+    domainRepository.deleteChatMessage(chatId);
+    audit("chat.message.deleted", "chat_messages", chatId);
+    return json({ ok: true });
+  }
+
+  if (method === "GET" && path === "/api/action-logs") return json(domainRepository.actionLogs());
+  if (method === "GET" && path === "/api/pc") return json(pcStatus());
+  if (method === "GET" && path === "/api/pc/sync") {
+    audit("pc.sync.requested", "devices", "hermes-pc-local", "pending_confirmation");
+    return json({ ok: true, status: "pending_confirmation", pc: pcStatus() });
+  }
+  if (method === "GET" && path === "/api/devices") return json(deviceService.listDevices());
+  if (method === "POST" && path === "/api/devices/pairing-code") {
+    const item = deviceService.createPairingCode();
+    audit("device.pairing.draft_created", "pairing_codes", item.code, "draft");
+    return json({ ...item, status: "draft" }, { status: 201 });
+  }
+  if (method === "POST" && path === "/api/devices/claim") {
+    const item = await deviceService.claimPairingCode(await readJson(request));
+    audit("device.pairing.claimed", "devices", item.id, "confirmed");
+    return json(item, { status: 201 });
+  }
+  const deviceId = resourceId(path, "devices");
+  if (deviceId && method === "DELETE") {
+    deviceService.revokeDevice(deviceId);
+    audit("device.revoked", "devices", deviceId, "confirmed");
+    return json({ ok: true });
+  }
+  if (method === "GET" && path === "/api/tasks") return json(taskRepository.listTasks());
+  if (method === "POST" && path === "/api/tasks") {
+    const item = taskRepository.createTask(await readJson(request));
+    audit("task.created", "tasks", item.id, "draft");
+    return json(item, { status: 201 });
+  }
+  const taskId = resourceId(path, "tasks");
+  if (taskId && (method === "PATCH" || method === "PUT")) {
+    const item = taskRepository.updateTask(taskId, await readJson(request));
+    if (!item) throw new ApiError(404, "NOT_FOUND", "Tarefa não encontrada.");
+    audit("task.updated", "tasks", taskId);
+    return json(item);
+  }
+  if (taskId && method === "DELETE") {
+    taskRepository.deleteTask(taskId);
+    audit("task.deleted", "tasks", taskId, "confirmed");
+    return json({ ok: true });
+  }
+  if (method === "GET" && path === "/api/notifications")
+    return json(taskRepository.listNotifications());
+  const notificationRead = path.match(/^\/api\/notifications\/([^/]+)\/read$/)?.[1];
+  if (notificationRead && method === "POST") {
+    taskRepository.markNotificationRead(notificationRead);
+    audit("notification.read", "notifications", notificationRead);
+    return json({ ok: true });
+  }
+
+  if (method === "POST" && path === "/api/action-logs") {
     const body = await readJson<{
       action?: string;
       entityType?: string;
       entityId?: string;
       sensitivity?: string;
-      requiresConfirmation?: boolean;
-      confirmed?: boolean;
+      confirmationStatus?: "draft" | "pending_confirmation" | "confirmed";
       details?: unknown;
     }>(request);
-    if (!body.action) return json({ error: "Action is required" }, { status: 400 });
-    const id = repositories.logAction({
-      action: body.action,
-      entityType: body.entityType,
-      entityId: body.entityId,
-      sensitivity: body.sensitivity,
-      requiresConfirmation: body.requiresConfirmation,
-      confirmed: body.confirmed,
-      details: body.details,
-    });
-    return json({ id }, { status: 201 });
+    if (!body.action) throw new ApiError(400, "ACTION_REQUIRED", "A ação é obrigatória.");
+    return json(
+      domainRepository.logAction({ ...body, action: body.action, userId: auth.user.id }),
+      { status: 201 },
+    );
   }
 
-  return null;
+  throw new ApiError(404, "NOT_FOUND", "Endpoint não encontrado.");
 }
