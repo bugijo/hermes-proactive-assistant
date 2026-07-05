@@ -115,6 +115,21 @@ async function withFallback<T>(path: string, fallback: () => Promise<T>): Promis
 const mutate = <T>(method: string, path: string, body?: unknown) =>
   request<T>(path, { method, body: body === undefined ? undefined : JSON.stringify(body) });
 
+async function mutateWithFallback<T>(
+  method: string,
+  path: string,
+  body: unknown,
+  fallback: () => Promise<T>,
+) {
+  try {
+    return await mutate<T>(method, path, body);
+  } catch (error) {
+    if (error instanceof ApiResponseError) throw error;
+    notifyMode("offline");
+    return fallback();
+  }
+}
+
 export interface HermesService {
   getSnapshot(): Promise<HermesSnapshot>;
   getUser(): Promise<UserProfile>;
@@ -170,7 +185,13 @@ export const hermesService: HermesService = {
   getInitialChat: () => withFallback("/api/chat", () => delay(initialChat)),
   sendChatMessage: (text) =>
     apiBaseUrl
-      ? mutate("POST", "/api/chat", { text, confirmationStatus: "draft" })
+      ? mutateWithFallback("POST", "/api/chat", { text, confirmationStatus: "draft" }, () =>
+          delay({
+            id: `h-${Date.now()}`,
+            role: "hermes",
+            text: "Modo demo: salvei apenas nesta tela; ações sensíveis continuam bloqueadas.",
+          }),
+        )
       : delay({
           id: `h-${Date.now()}`,
           role: "hermes",
@@ -182,35 +203,56 @@ export const hermesService: HermesService = {
   getDevices: () => withFallback("/api/devices", () => delay(authorizedDevices)),
   updateSuggestion: (id, state) =>
     apiBaseUrl
-      ? mutate("PATCH", `/api/suggestions/${id}`, {
-          state,
-          confirmationStatus: state === "approved" ? "confirmed" : "confirmed",
-        })
+      ? mutateWithFallback(
+          "PATCH",
+          `/api/suggestions/${id}`,
+          { state, confirmationStatus: "confirmed" },
+          () => delay({ ...suggestions.find((x) => x.id === id)!, state }),
+        )
       : delay({ ...suggestions.find((x) => x.id === id)!, state }),
   updateAutomation: (id, enabled) =>
     apiBaseUrl
-      ? mutate("PATCH", `/api/automations/${id}`, { enabled, confirmationStatus: "confirmed" })
+      ? mutateWithFallback(
+          "PATCH",
+          `/api/automations/${id}`,
+          { enabled, confirmationStatus: "confirmed" },
+          () => delay({ ...automations.find((x) => x.id === id)!, enabled }),
+        )
       : delay({ ...automations.find((x) => x.id === id)!, enabled }),
   updatePermission: (id, granted) =>
     apiBaseUrl
-      ? mutate("PATCH", `/api/permissions/${id}`, { granted, confirmationStatus: "confirmed" })
+      ? mutateWithFallback(
+          "PATCH",
+          `/api/permissions/${id}`,
+          { granted, confirmationStatus: "confirmed" },
+          () => delay({ ...devicePermissions.find((x) => x.id === id)!, granted }),
+        )
       : delay({ ...devicePermissions.find((x) => x.id === id)!, granted }),
   updateSecuritySetting: (id, enabled) =>
     apiBaseUrl
-      ? mutate("PATCH", `/api/security-settings/${id}`, {
-          enabled,
-          confirmationStatus: "confirmed",
-        })
+      ? mutateWithFallback(
+          "PATCH",
+          `/api/security-settings/${id}`,
+          { enabled, confirmationStatus: "confirmed" },
+          () => delay({ ...securitySettings.find((x) => x.id === id)!, enabled }),
+        )
       : delay({ ...securitySettings.find((x) => x.id === id)!, enabled }),
   addPromotion: (input) =>
     apiBaseUrl
-      ? mutate("POST", "/api/promotions", {
-          price: 0,
-          score: 0,
-          status: "Esperar",
-          url: "#",
-          ...input,
-        })
+      ? mutateWithFallback(
+          "POST",
+          "/api/promotions",
+          { price: 0, score: 0, status: "Esperar", url: "#", ...input },
+          () =>
+            delay({
+              id: `mock-${Date.now()}`,
+              price: 0,
+              score: 0,
+              status: "Esperar",
+              url: "#",
+              ...input,
+            } as Offer),
+        )
       : delay({
           id: `mock-${Date.now()}`,
           price: 0,
@@ -220,6 +262,9 @@ export const hermesService: HermesService = {
           ...input,
         } as Offer),
   removePromotion: async (id) => {
-    if (apiBaseUrl) await mutate("DELETE", `/api/promotions/${id}`);
+    if (apiBaseUrl)
+      await mutateWithFallback("DELETE", `/api/promotions/${id}`, undefined, () =>
+        Promise.resolve(undefined),
+      );
   },
 };

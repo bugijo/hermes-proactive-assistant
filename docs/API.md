@@ -1,86 +1,83 @@
 # API local — Hermes Mobile
 
-A API local é a Fase 2 do Hermes Mobile. Ela roda com Bun, usa SQLite local e expõe endpoints REST para substituir os mocks progressivamente.
+Base padrão: `http://localhost:8787`.
 
-## Rodando
+## Respostas
 
-```bash
-bun backend/src/server.ts
+Sucesso:
+
+```json
+{ "data": { "ok": true } }
 ```
 
-Por padrão a API sobe em `http://localhost:8787`. Para o frontend usar a API:
+Erro:
 
-```bash
-VITE_HERMES_API_URL=http://localhost:8787 bun run dev
+```json
+{ "error": { "code": "UNAUTHORIZED", "message": "Sessão ausente, inválida ou expirada." } }
 ```
 
-## Banco de dados
+Rotas privadas exigem `Authorization: Bearer <token>`. Tokens expiram, são armazenados no banco somente como SHA-256 e podem ser revogados no logout.
 
-O SQLite fica em `backend/data/hermes.sqlite` e é ignorado pelo Git. O schema inicial cria:
+## Autenticação
 
-- `suggestions`
-- `promotions`
-- `automations`
-- `permissions`
-- `chat_messages`
-- `devices`
-- `action_logs`
-- `app_state` para status e configurações globais simples
+| Método | Rota                 | Acesso           | Descrição                                                  |
+| ------ | -------------------- | ---------------- | ---------------------------------------------------------- |
+| `GET`  | `/health`            | Público          | Saúde da API.                                              |
+| `GET`  | `/api/auth/status`   | Público          | Indica se o primeiro usuário existe.                       |
+| `POST` | `/api/auth/register` | Público, uma vez | Cria o primeiro usuário somente se a tabela estiver vazia. |
+| `POST` | `/api/auth/login`    | Público          | Cria sessão com expiração.                                 |
+| `POST` | `/api/auth/logout`   | Privado          | Revoga a sessão atual.                                     |
 
-## Endpoints
+Bootstrap:
 
-| Método | Rota               | Descrição                                                   |
-| ------ | ------------------ | ----------------------------------------------------------- |
-| `GET`  | `/health`          | Health check.                                               |
-| `GET`  | `/api/snapshot`    | Snapshot usado pelo dashboard.                              |
-| `GET`  | `/api/status`      | Status atual do Hermes.                                     |
-| `GET`  | `/api/suggestions` | Sugestões persistidas.                                      |
-| `GET`  | `/api/promotions`  | Promoções e categorias.                                     |
-| `GET`  | `/api/automations` | Automações configuradas.                                    |
-| `GET`  | `/api/permissions` | Permissões do dispositivo.                                  |
-| `GET`  | `/api/chat`        | Histórico do chat.                                          |
-| `POST` | `/api/chat`        | Persiste mensagem do usuário e resposta simulada do Hermes. |
-| `GET`  | `/api/pc`          | Estado do Hermes PC local.                                  |
-| `GET`  | `/api/pc/sync`     | Simula sync e registra log.                                 |
-| `GET`  | `/api/action-logs` | Últimos logs de ação.                                       |
-| `POST` | `/api/action-logs` | Cria log de ação sensível ou operacional.                   |
+```bash
+curl -X POST http://localhost:8787/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Usuário local","email":"local@example.test","password":"troque-esta-senha"}'
+```
 
-## Segurança atual
+Login:
 
-A API é local e simples. A regra de produto continua: enviar mensagens, comprar, apagar arquivos e comandos remotos destrutivos devem exigir confirmação explícita antes de execução real.
+```bash
+curl -X POST http://localhost:8787/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"local@example.test","password":"troque-esta-senha"}'
+```
 
-## Fase 3 adicionada
+Use o campo `data.token` somente em memória/sessão local e nunca o grave no Git.
 
-### Autenticação local
+## Recursos privados
 
-- `GET /api/auth/status`
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/unlock`
+Todos os recursos abaixo aceitam `GET` e as operações CRUD indicadas. `:id` é o identificador retornado pela API.
 
-A API emite JWT local e guarda sessões em SQLite. Biometria permanece como capacidade planejada para Android nativo.
+| Recurso    | Rotas                                                                            |
+| ---------- | -------------------------------------------------------------------------------- |
+| Snapshot   | `GET /api/snapshot`, `GET /api/status`, `GET /api/dashboard`                     |
+| Sugestões  | `GET/POST /api/suggestions`, `PATCH/PUT/DELETE /api/suggestions/:id`             |
+| Promoções  | `GET/POST /api/promotions`, `PATCH/PUT/DELETE /api/promotions/:id`               |
+| Automações | `GET/POST /api/automations`, `PATCH/PUT/DELETE /api/automations/:id`             |
+| Permissões | `GET/POST /api/permissions`, `PATCH/PUT/DELETE /api/permissions/:id`             |
+| Segurança  | `GET/POST /api/security-settings`, `PATCH/PUT/DELETE /api/security-settings/:id` |
+| Chat       | `GET/POST /api/chat`, `PATCH/PUT/DELETE /api/chat/:id`                           |
+| Auditoria  | `GET/POST /api/action-logs`                                                      |
 
-### Pareamento Hermes PC
+Compatibilidade preservada: `/api/tasks`, `/api/notifications`, `/api/devices`, `/api/pc` e seus subendpoints existentes continuam disponíveis e autenticados. O pareamento atual é apenas um protótipo local; o pareamento criptográfico completo pertence à próxima fase.
 
-- `GET /api/devices`
-- `POST /api/devices/pairing-code`
-- `POST /api/devices/claim`
-- `DELETE /api/devices/:id`
+Exemplo de alteração confirmada de sugestão:
 
-O QR Code ainda é representado por um payload textual (`qrPayload`) para ser transformado em imagem na camada PC/app quando o leitor/câmera for integrado.
+```bash
+curl -X PATCH http://localhost:8787/api/suggestions/SUGGESTION_ID \
+  -H "Authorization: Bearer $HERMES_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"state":"approved","confirmationStatus":"confirmed"}'
+```
 
-### Tarefas e notificações
+Valores de `confirmationStatus`:
 
-- `GET /api/dashboard`
-- `GET /api/tasks`
-- `POST /api/tasks`
-- `PUT /api/tasks/:id`
-- `DELETE /api/tasks/:id`
-- `GET /api/notifications`
-- `POST /api/notifications/:id/read`
+- `draft`: salvo, não autorizado para execução.
+- `pending_confirmation`: aguarda confirmação explícita.
+- `confirmed`: usuário confirmou o registro; ainda não implica execução externa nesta fase.
 
-### Tempo real
+## WebSocket
 
-- `WS /ws`
-
-O WebSocket envia eventos de conexão, chat e sincronização para clientes conectados.
+`/ws` exige bearer token no handshake. Não há cliente WebSocket ativo no frontend nesta fase; o canal permanece compatível para evolução futura.
