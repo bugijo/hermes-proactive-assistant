@@ -3,6 +3,8 @@ import { MobileShell } from "@/components/MobileShell";
 import { useDevicePermissions } from "@/hooks/use-hermes-data";
 import { ShieldCheck, Check, X } from "lucide-react";
 import { useState } from "react";
+import { hermesService } from "@/services/hermes-service";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 
 export const Route = createFileRoute("/device")({
   head: () => ({ meta: [{ title: "Controle do celular — Hermes Mobile" }] }),
@@ -12,6 +14,17 @@ export const Route = createFileRoute("/device")({
 function DevicePage() {
   const { data: devicePermissions } = useDevicePermissions();
   const [perms, setPerms] = useState(devicePermissions);
+  const [pending, setPending] = useState<number | null>(null);
+  const apply = () => {
+    if (pending === null) return;
+    const permission = perms[pending];
+    const granted = !permission.granted;
+    setPerms((current) =>
+      current.map((item, index) => (index === pending ? { ...item, granted } : item)),
+    );
+    void hermesService.updatePermission(permission.id, granted);
+    setPending(null);
+  };
 
   return (
     <MobileShell>
@@ -41,11 +54,7 @@ function DevicePage() {
                 <p className="mt-0.5 text-xs text-muted-foreground">{p.description}</p>
               </div>
               <button
-                onClick={() =>
-                  setPerms((cur) =>
-                    cur.map((x, j) => (j === i ? { ...x, granted: !x.granted } : x)),
-                  )
-                }
+                onClick={() => setPending(i)}
                 className={
                   "flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors " +
                   (p.granted
@@ -60,6 +69,13 @@ function DevicePage() {
           </li>
         ))}
       </ul>
+      <ConfirmActionDialog
+        open={pending !== null}
+        title="Alterar permissão?"
+        description="Esta fase registra apenas sua preferência. Nenhuma permissão Android real será concedida nem usada."
+        onCancel={() => setPending(null)}
+        onConfirm={apply}
+      />
     </MobileShell>
   );
 }

@@ -17,6 +17,8 @@ export interface Suggestion {
   title: string;
   description: string;
   time: string;
+  state?: "pending" | "approved" | "ignored" | "later";
+  confirmationStatus?: "draft" | "pending_confirmation" | "confirmed";
 }
 export type OfferStatus = "Comprar agora" | "Esperar" | "Ruim" | "Suspeita";
 export interface Offer {

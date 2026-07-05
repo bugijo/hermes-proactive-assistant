@@ -2,8 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
 import { useOffers } from "@/hooks/use-hermes-data";
 import type { OfferStatus } from "@/types/hermes";
-import { ExternalLink, Bell, Star } from "lucide-react";
-import { useState } from "react";
+import { ExternalLink, Plus, Star, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { hermesService } from "@/services/hermes-service";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 
 export const Route = createFileRoute("/promotions")({
   head: () => ({ meta: [{ title: "Promoções — Hermes Mobile" }] }),
@@ -20,8 +22,32 @@ const statusStyles: Record<OfferStatus, string> = {
 function PromotionsPage() {
   const { data } = useOffers();
   const [category, setCategory] = useState<string>("Todos");
-  const filtered =
-    category === "Todos" ? data.offers : data.offers.filter((o) => o.category === category);
+  const [items, setItems] = useState(data.offers);
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [target, setTarget] = useState("");
+  const [removeId, setRemoveId] = useState<string | null>(null);
+  useEffect(() => setItems(data.offers), [data.offers]);
+  const filtered = category === "Todos" ? items : items.filter((o) => o.category === category);
+
+  const add = async () => {
+    if (!name.trim()) return;
+    const item = await hermesService.addPromotion({
+      name: name.trim(),
+      category: category === "Todos" ? "Outros" : category,
+      target: Number(target) || 0,
+    });
+    setItems((current) => [item, ...current]);
+    setName("");
+    setTarget("");
+    setShowForm(false);
+  };
+  const remove = async () => {
+    if (!removeId) return;
+    await hermesService.removePromotion(removeId);
+    setItems((current) => current.filter((item) => item.id !== removeId));
+    setRemoveId(null);
+  };
 
   return (
     <MobileShell>
@@ -29,6 +55,36 @@ function PromotionsPage() {
       <p className="mb-4 text-sm text-muted-foreground">
         Monitoramento inteligente de ofertas — nota do Hermes baseada em preço, loja e histórico.
       </p>
+
+      <button
+        onClick={() => setShowForm((value) => !value)}
+        className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card/60 py-2.5 text-xs font-semibold"
+      >
+        <Plus className="h-4 w-4" /> Adicionar item monitorado
+      </button>
+      {showForm && (
+        <div className="glass-card mb-4 space-y-2 rounded-2xl p-3">
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Nome do produto"
+            className="w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm outline-none"
+          />
+          <input
+            value={target}
+            onChange={(event) => setTarget(event.target.value)}
+            inputMode="decimal"
+            placeholder="Preço alvo"
+            className="w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm outline-none"
+          />
+          <button
+            onClick={() => void add()}
+            className="w-full rounded-xl gradient-primary py-2 text-xs font-semibold text-primary-foreground"
+          >
+            Salvar monitoramento
+          </button>
+        </div>
+      )}
 
       <div className="-mx-4 mb-4 overflow-x-auto px-4">
         <div className="flex gap-2">
@@ -87,13 +143,23 @@ function PromotionsPage() {
               >
                 <ExternalLink className="h-3.5 w-3.5" /> Abrir link
               </a>
-              <button className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background/40 px-3 py-2 text-xs font-semibold hover:bg-background/70 active:scale-95">
-                <Bell className="h-3.5 w-3.5" /> Monitorar
+              <button
+                onClick={() => setRemoveId(o.id)}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background/40 px-3 py-2 text-xs font-semibold hover:bg-background/70 active:scale-95"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Remover
               </button>
             </div>
           </li>
         ))}
       </ul>
+      <ConfirmActionDialog
+        open={Boolean(removeId)}
+        title="Remover item monitorado?"
+        description="O item sairá da lista local. Nenhuma compra ou ação externa será realizada."
+        onCancel={() => setRemoveId(null)}
+        onConfirm={() => void remove()}
+      />
     </MobileShell>
   );
 }
