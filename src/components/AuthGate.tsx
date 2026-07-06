@@ -18,7 +18,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     window.addEventListener("hermes:connection", connection);
     window.addEventListener("hermes:unauthorized", unauthorized);
     if (!authApi.isConfigured()) setStatus({ hasUser: false, authenticationRequired: false });
-    else
+    else {
+      void authApi.restoreSession().then(setAuthenticated);
       authApi
         .status()
         .then(setStatus)
@@ -26,6 +27,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           setMode("offline");
           setStatus({ hasUser: false, authenticationRequired: false });
         });
+    }
     return () => {
       window.removeEventListener("hermes:connection", connection);
       window.removeEventListener("hermes:unauthorized", unauthorized);

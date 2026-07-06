@@ -30,7 +30,10 @@ import type {
   SystemMetrics,
   TaskRecord,
   UserProfile,
+  PairingToken,
 } from "@/types/hermes";
+import type { NativePreferences } from "@/services/native/preferences-service";
+import { platformService } from "@/services/platform";
 
 const clone = <T>(data: T): T => JSON.parse(JSON.stringify(data)) as T;
 const delay = <T>(data: T, ms = 100): Promise<T> =>
@@ -50,12 +53,22 @@ export interface AuthSession {
 }
 
 const browser = typeof window !== "undefined";
-const getToken = () => (browser ? window.sessionStorage.getItem(TOKEN_KEY) : null);
+let tokenCache: string | null = null;
+let restorePromise: Promise<string | null> | null = null;
+const getToken = async () => {
+  if (tokenCache) return tokenCache;
+  restorePromise ??= platformService.secureGet(TOKEN_KEY);
+  tokenCache = await restorePromise;
+  return tokenCache;
+};
 export const saveSession = (session: AuthSession) => {
-  if (browser) window.sessionStorage.setItem(TOKEN_KEY, session.token);
+  tokenCache = session.token;
+  void platformService.secureSet(TOKEN_KEY, session.token);
 };
 export const clearSession = () => {
-  if (browser) window.sessionStorage.removeItem(TOKEN_KEY);
+  tokenCache = null;
+  restorePromise = null;
+  void platformService.secureRemove(TOKEN_KEY);
 };
 const notifyMode = (mode: ConnectionMode) => {
   if (browser) window.dispatchEvent(new CustomEvent("hermes:connection", { detail: mode }));
@@ -73,7 +86,7 @@ class ApiResponseError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!apiBaseUrl) throw new TypeError("API not configured");
-  const token = getToken();
+  const token = await getToken();
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     headers: {
@@ -152,6 +165,21 @@ export interface HermesService {
   updateSecuritySetting(id: string, enabled: boolean): Promise<SecuritySetting>;
   addPromotion(input: Pick<Offer, "name" | "category" | "target"> & Partial<Offer>): Promise<Offer>;
   removePromotion(id: string): Promise<void>;
+  createPairingToken(): Promise<PairingToken>;
+  approveDevice(id: string): Promise<AuthorizedDevice>;
+  revokeDevice(id: string): Promise<void>;
+  getNotificationPreferences(): Promise<NativePreferences>;
+  updateNotificationPreferences(input: NativePreferences): Promise<NativePreferences>;
+  createNotification(input: {
+    title: string;
+    description: string;
+    type: string;
+  }): Promise<{ id: string }>;
+  recordNativeAction(input: {
+    action: string;
+    payload?: unknown;
+    confirmationStatus?: "draft" | "pending_confirmation" | "confirmed";
+  }): Promise<{ id: string }>;
 }
 
 export const authApi = {
@@ -167,7 +195,10 @@ export const authApi = {
       clearSession();
     }
   },
-  hasSession: () => Boolean(getToken()),
+  hasSession: () => Boolean(tokenCache),
+  async restoreSession() {
+    return Boolean(await getToken());
+  },
   isConfigured: () => Boolean(apiBaseUrl),
 };
 
@@ -267,4 +298,26 @@ export const hermesService: HermesService = {
         Promise.resolve(undefined),
       );
   },
+  createPairingToken: () => mutate("POST", "/api/pairing-tokens", {}),
+  approveDevice: (id) => mutate("POST", `/api/devices/${id}/approve`),
+  revokeDevice: async (id) => {
+    await mutate("DELETE", `/api/devices/${id}`);
+  },
+  getNotificationPreferences: () =>
+    withFallback(
+      "/api/preferences/notifications",
+      async () => (await import("@/services/native/preferences-service")).defaultNativePreferences,
+    ),
+  updateNotificationPreferences: (input) =>
+    mutateWithFallback("PUT", "/api/preferences/notifications", input, () =>
+      Promise.resolve(input),
+    ),
+  createNotification: (input) =>
+    mutateWithFallback("POST", "/api/notifications", input, () =>
+      Promise.resolve({ id: `offline-${Date.now()}` }),
+    ),
+  recordNativeAction: (input) =>
+    mutateWithFallback("POST", "/api/native-actions", input, () =>
+      Promise.resolve({ id: `offline-${Date.now()}` }),
+    ),
 };

@@ -114,6 +114,19 @@ export interface AuthorizedDevice {
   connected: boolean;
   revoked: boolean;
   lastSync?: string;
+  status?: "connected" | "offline" | "pending_approval" | "revoked";
+  approvalStatus?: "pending" | "approved" | "revoked";
+  pairedAt?: string;
+}
+
+export interface PairingToken {
+  id: string;
+  code: string;
+  token: string;
+  publicKey: string;
+  qrPayload: string;
+  expiresAt: string;
+  status: "waiting" | "expired" | "claimed";
 }
 
 export interface HermesSnapshot {
