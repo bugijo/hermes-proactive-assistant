@@ -63,6 +63,21 @@ Todos os recursos abaixo aceitam `GET` e as operações CRUD indicadas. `:id` é
 
 Compatibilidade preservada: `/api/tasks`, `/api/notifications`, `/api/devices`, `/api/pc` e seus subendpoints existentes continuam disponíveis e autenticados. O pareamento atual é apenas um protótipo local; o pareamento criptográfico completo pertence à próxima fase.
 
+## Fase 4: dispositivos e recursos nativos
+
+| Método    | Rota                             | Acesso              | Descrição                                             |
+| --------- | -------------------------------- | ------------------- | ----------------------------------------------------- |
+| `POST`    | `/api/pairing-tokens`            | Privado             | Cria token/QR de uso único, máximo 5 minutos.         |
+| `POST`    | `/api/pairing/claim`             | Token de pareamento | Apresenta computador para aprovação manual.           |
+| `GET`     | `/api/devices`                   | Privado             | Lista conectados, offline, pendentes e revogados.     |
+| `POST`    | `/api/devices/:id/approve`       | Privado             | Aprova manualmente um computador pendente.            |
+| `DELETE`  | `/api/devices/:id`               | Privado             | Revoga computador.                                    |
+| `GET/PUT` | `/api/preferences/notifications` | Privado             | Lê/salva bateria, dados móveis, silêncio e sync.      |
+| `POST`    | `/api/notifications`             | Privado             | Registra notificação local preparada.                 |
+| `POST`    | `/api/native-actions`            | Privado             | Registra pedido nativo; não executa ação no servidor. |
+
+`open_app` exige `confirmationStatus: "confirmed"`. `send_message`, `purchase`, `delete_file`, `remote_command` e `control_screen` retornam `ACTION_NOT_AVAILABLE` mesmo se enviados como confirmados.
+
 Exemplo de alteração confirmada de sugestão:
 
 ```bash

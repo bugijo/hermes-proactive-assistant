@@ -30,6 +30,10 @@ Na Fase 3, a API usa migrações SQL numeradas em `backend/migrations`, reposit�
 
 O frontend é envolvido por `AuthGate`: com API online, exige bootstrap/login; sem API, preserva o fluxo Lovable e sinaliza o modo demo. O token fica em `sessionStorage`, enquanto o servidor persiste somente seu hash.
 
+Na Fase 4, `src/services/platform` define uma interface única e escolhe adapter Capacitor ou web. `src/services/native` contém guardas de confirmação, preferências e planejamento de notificações. Não há polling contínuo: o plano é avaliado quando o app recebe dados/abre, deduplicado por preferência local e respeita silêncio/rede.
+
+No APK, o token de sessão usa plugin local AES-GCM cuja chave fica no Android Keystore. Preferências não secretas usam `@capacitor/preferences`; no PWA, sessão permanece efêmera em `sessionStorage` e preferências usam `localStorage`.
+
 ## Organização backend Fase 3
 
 ```text
