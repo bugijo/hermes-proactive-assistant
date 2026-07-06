@@ -19,10 +19,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
     window.addEventListener("hermes:unauthorized", unauthorized);
     if (!authApi.isConfigured()) setStatus({ hasUser: false, authenticationRequired: false });
     else {
-      void authApi.restoreSession().then(setAuthenticated);
-      authApi
-        .status()
-        .then(setStatus)
+      void Promise.all([authApi.restoreSession(), authApi.status()])
+        .then(([restored, nextStatus]) => {
+          setAuthenticated(restored);
+          setStatus(nextStatus);
+        })
         .catch(() => {
           setMode("offline");
           setStatus({ hasUser: false, authenticationRequired: false });

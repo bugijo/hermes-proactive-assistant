@@ -304,9 +304,16 @@ export const hermesService: HermesService = {
     await mutate("DELETE", `/api/devices/${id}`);
   },
   getNotificationPreferences: () =>
-    withFallback(
-      "/api/preferences/notifications",
-      async () => (await import("@/services/native/preferences-service")).defaultNativePreferences,
+    withFallback("/api/preferences/notifications", () =>
+      Promise.resolve({
+        batterySaver: false,
+        limitMobileData: true,
+        quietHoursEnabled: true,
+        quietStart: "22:00",
+        quietEnd: "07:00",
+        syncFrequency: "30m",
+        notificationsEnabled: false,
+      }),
     ),
   updateNotificationPreferences: (input) =>
     mutateWithFallback("PUT", "/api/preferences/notifications", input, () =>

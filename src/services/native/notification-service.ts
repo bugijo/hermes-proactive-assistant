@@ -1,6 +1,7 @@
 import type { HermesSnapshot } from "@/types/hermes";
 import { platformService, type LocalNotificationRequest } from "@/services/platform";
 import { isQuietTime, type NativePreferences } from "./preferences-service";
+import { hermesService } from "@/services/hermes-service";
 
 const notificationId = (value: string) =>
   Math.abs([...value].reduce((hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) | 0, 17));
@@ -61,6 +62,11 @@ export async function syncLocalNotifications(
     const key = `hermes.notification.${item.id}`;
     if ((await platformService.preferenceGet(key)) === "sent") continue;
     if (await platformService.scheduleNotification(item)) {
+      await hermesService.createNotification({
+        title: item.title,
+        description: item.body,
+        type: String(item.extra?.route ?? "general"),
+      });
       await platformService.preferenceSet(key, "sent");
       count++;
     }
