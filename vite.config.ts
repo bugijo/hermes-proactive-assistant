@@ -6,10 +6,22 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+const capacitorBuild = process.env.CAPACITOR_BUILD === "true";
+
 export default defineConfig({
+  // The browser/PWA build keeps Nitro. Capacitor uses TanStack's static SPA output instead.
+  nitro: capacitorBuild ? false : undefined,
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+    ...(capacitorBuild
+      ? {
+          spa: {
+            enabled: true,
+            prerender: { outputPath: "/index.html", crawlLinks: false },
+          },
+        }
+      : {}),
   },
 });

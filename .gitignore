@@ -38,3 +38,17 @@ dist-ssr
 backend/data/*.sqlite*
 backend/data/*.db*
 backend/coverage/
+
+# Capacitor / Android generated build output and local tooling
+android/.gradle/
+android/.idea/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+android/.cxx/
+*.apk
+*.aab
+*.jks
+*.keystore
+keystore.properties
