@@ -141,4 +141,98 @@ describe("API local Fase 3", () => {
       ),
     ).toBe(true);
   });
+
+  test("salva preferências de bateria e dados móveis", async () => {
+    const updated = await api("/api/preferences/notifications", {
+      method: "PUT",
+      body: JSON.stringify({
+        batterySaver: true,
+        limitMobileData: false,
+        notificationsEnabled: true,
+      }),
+    });
+    expect(updated.response.status).toBe(200);
+    expect(updated.body.data.batterySaver).toBe(true);
+    expect(updated.body.data.limitMobileData).toBe(false);
+  });
+
+  test("cria notificação local persistida", async () => {
+    const created = await api("/api/notifications", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Preço-alvo",
+        description: "SSD atingiu o valor configurado",
+        type: "price_target",
+      }),
+    });
+    expect(created.response.status).toBe(201);
+    expect(created.body.data.id).toStartWith("notification-");
+  });
+
+  test("pareia, aprova e revoga um computador", async () => {
+    const pairing = await api("/api/pairing-tokens", { method: "POST", body: "{}" });
+    expect(pairing.response.status).toBe(201);
+    const claim = await api(
+      "/api/pairing/claim",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          code: pairing.body.data.code,
+          token: pairing.body.data.token,
+          deviceName: "PC Teste",
+          publicKey: "mock-pc-public-key",
+        }),
+      },
+      false,
+    );
+    expect(claim.response.status).toBe(201);
+    expect(claim.body.data.status).toBe("pending_approval");
+    const deviceId = claim.body.data.id;
+    const approved = await api(`/api/devices/${deviceId}/approve`, { method: "POST" });
+    expect(approved.body.data.status).toBe("offline");
+    const revoked = await api(`/api/devices/${deviceId}`, { method: "DELETE" });
+    expect(revoked.body.data.ok).toBe(true);
+    const devices = await api("/api/devices");
+    expect(devices.body.data.find((item: { id: string }) => item.id === deviceId).status).toBe(
+      "revoked",
+    );
+  });
+
+  test("rejeita token de pareamento expirado", async () => {
+    const pairing = await api("/api/pairing-tokens", {
+      method: "POST",
+      body: JSON.stringify({ ttlSeconds: 1 }),
+    });
+    await Bun.sleep(1100);
+    const claim = await api(
+      "/api/pairing/claim",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          code: pairing.body.data.code,
+          token: pairing.body.data.token,
+          deviceName: "PC Atrasado",
+          publicKey: "mock-expired-key",
+        }),
+      },
+      false,
+    );
+    expect(claim.response.status).toBe(410);
+    expect(claim.body.error.code).toBe("PAIRING_TOKEN_INVALID_OR_EXPIRED");
+  });
+
+  test("bloqueia ação sensível sem confirmação e ações fora de escopo", async () => {
+    const unconfirmed = await api("/api/native-actions", {
+      method: "POST",
+      body: JSON.stringify({ action: "open_app", payload: { url: "android.settings.SETTINGS" } }),
+    });
+    expect(unconfirmed.response.status).toBe(409);
+    expect(unconfirmed.body.error.code).toBe("CONFIRMATION_REQUIRED");
+    const forbidden = await api("/api/native-actions", {
+      method: "POST",
+      body: JSON.stringify({ action: "delete_file", confirmationStatus: "confirmed" }),
+    });
+    expect(forbidden.response.status).toBe(403);
+    expect(forbidden.body.error.code).toBe("ACTION_NOT_AVAILABLE");
+  });
 });
