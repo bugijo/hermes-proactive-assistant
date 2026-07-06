@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { initialChat, type ChatMessage } from "@/services/mock-hermes-data";
+import { useInitialChat } from "@/hooks/use-hermes-data";
+import { hermesService } from "@/services/hermes-service";
+import type { ChatMessage } from "@/types/hermes";
 import { Send, Sparkles, Tag, Bell, Search, AppWindow, Monitor } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
@@ -18,6 +20,7 @@ const quickActions = [
 ];
 
 function ChatPage() {
+  const { data: initialChat } = useInitialChat();
   const [messages, setMessages] = useState<ChatMessage[]>(initialChat);
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
@@ -32,16 +35,9 @@ function ChatPage() {
     const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: "user", text: t };
     setMessages((m) => [...m, userMsg]);
     setInput("");
-    setTimeout(() => {
-      setMessages((m) => [
-        ...m,
-        {
-          id: `h-${Date.now()}`,
-          role: "hermes",
-          text: "Entendi. Deixa comigo — vou preparar uma sugestão e te aviso antes de fazer qualquer coisa.",
-        },
-      ]);
-    }, 700);
+    void hermesService.sendChatMessage(t).then((reply) => {
+      setMessages((m) => [...m, reply]);
+    });
   };
 
   return (

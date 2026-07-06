@@ -17,6 +17,8 @@ export interface Suggestion {
   title: string;
   description: string;
   time: string;
+  state?: "pending" | "approved" | "ignored" | "later";
+  confirmationStatus?: "draft" | "pending_confirmation" | "confirmed";
 }
 export type OfferStatus = "Comprar agora" | "Esperar" | "Ruim" | "Suspeita";
 export interface Offer {
@@ -76,6 +78,44 @@ export interface ChatMessage {
   text: string;
   card?: { title: string; description: string };
 }
+
+export interface SystemMetrics {
+  cpu: number;
+  ram: number;
+  disk: number;
+  gpu: number;
+  hermesStatus: string;
+  lastSync: string;
+  taskCount: number;
+  connectedDevices: number;
+}
+export interface TaskRecord {
+  id: string;
+  title: string;
+  description?: string;
+  priority: "baixa" | "média" | "alta";
+  category: string;
+  reminderAt?: string;
+  status: "pendente" | "em andamento" | "concluída" | "cancelada";
+  createdAt: string;
+  updatedAt: string;
+}
+export interface NotificationRecord {
+  id: string;
+  title: string;
+  description: string;
+  read: boolean;
+  createdAt: string;
+}
+export interface AuthorizedDevice {
+  id: string;
+  name: string;
+  type: string;
+  connected: boolean;
+  revoked: boolean;
+  lastSync?: string;
+}
+
 export interface HermesSnapshot {
   user: UserProfile;
   status: HermesStatus;
@@ -87,4 +127,8 @@ export interface HermesSnapshot {
   pc: HermesPcStatus;
   securitySettings: SecuritySetting[];
   initialChat: ChatMessage[];
+  metrics?: SystemMetrics;
+  tasks?: TaskRecord[];
+  devices?: AuthorizedDevice[];
+  notifications?: NotificationRecord[];
 }

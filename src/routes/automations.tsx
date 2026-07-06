@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { automations, type BatteryImpact } from "@/services/mock-hermes-data";
+import { useAutomations } from "@/hooks/use-hermes-data";
+import type { BatteryImpact } from "@/types/hermes";
 import { useState } from "react";
 import { Battery, Clock, ShieldCheck } from "lucide-react";
+import { hermesService } from "@/services/hermes-service";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 
 export const Route = createFileRoute("/automations")({
   head: () => ({ meta: [{ title: "Automações — Hermes Mobile" }] }),
@@ -16,7 +19,19 @@ const impactStyles: Record<BatteryImpact, string> = {
 };
 
 function AutomationsPage() {
-  const [state, setState] = useState(Object.fromEntries(automations.map((a) => [a.id, a.enabled])));
+  const { data: automations } = useAutomations();
+  const [state, setState] = useState(() =>
+    Object.fromEntries(automations.map((a) => [a.id, a.enabled])),
+  );
+  const [pending, setPending] = useState<string | null>(null);
+  const automation = automations.find((item) => item.id === pending);
+  const toggle = () => {
+    if (!pending) return;
+    const enabled = !state[pending];
+    setState((current) => ({ ...current, [pending]: enabled }));
+    void hermesService.updateAutomation(pending, enabled);
+    setPending(null);
+  };
 
   return (
     <MobileShell>
@@ -35,7 +50,7 @@ function AutomationsPage() {
                   <p className="text-sm font-semibold">{a.name}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{a.description}</p>
                 </div>
-                <Toggle on={on} onChange={() => setState((s) => ({ ...s, [a.id]: !s[a.id] }))} />
+                <Toggle on={on} onChange={() => setPending(a.id)} />
               </div>
 
               <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
@@ -64,6 +79,13 @@ function AutomationsPage() {
           );
         })}
       </ul>
+      <ConfirmActionDialog
+        open={Boolean(pending)}
+        title={`${state[pending ?? ""] ? "Desativar" : "Ativar"} automação?`}
+        description={`${automation?.name ?? "Esta automação"} terá apenas seu estado local alterado; nenhum conector externo será executado.`}
+        onCancel={() => setPending(null)}
+        onConfirm={toggle}
+      />
     </MobileShell>
   );
 }

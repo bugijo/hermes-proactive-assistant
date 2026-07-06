@@ -1,11 +1,15 @@
 import type {
+  AuthorizedDevice,
   Automation,
   ChatMessage,
   DevicePermission,
   HermesPcStatus,
   HermesSnapshot,
+  NotificationRecord,
   Offer,
   SecuritySetting,
+  SystemMetrics,
+  TaskRecord,
   Suggestion,
 } from "@/types/hermes";
 
@@ -301,6 +305,61 @@ export const initialChat: ChatMessage[] = [
   },
 ];
 
+export const systemMetrics: SystemMetrics = {
+  cpu: 18,
+  ram: 42,
+  disk: 67,
+  gpu: 24,
+  hermesStatus: "Ativo",
+  lastSync: hermesPc.lastSync,
+  taskCount: 2,
+  connectedDevices: 1,
+};
+
+export const tasks: TaskRecord[] = [
+  {
+    id: "task-1",
+    title: "Revisar sugestões do Hermes",
+    description: "Validar ações pendentes antes de executar.",
+    priority: "alta",
+    category: "Hermes",
+    status: "pendente",
+    createdAt: "hoje",
+    updatedAt: "hoje",
+  },
+  {
+    id: "task-2",
+    title: "Sincronizar Hermes PC",
+    description: "Confirmar pareamento e sync local.",
+    priority: "média",
+    category: "PC",
+    status: "em andamento",
+    createdAt: "hoje",
+    updatedAt: "hoje",
+  },
+];
+
+export const authorizedDevices: AuthorizedDevice[] = [
+  {
+    id: "hermes-pc-local",
+    name: "Hermes PC",
+    type: "desktop",
+    connected: true,
+    revoked: false,
+    lastSync: hermesPc.lastSync,
+  },
+];
+
+export const notifications: NotificationRecord[] = [
+  {
+    id: "notif-1",
+    title: "Hermes pronto",
+    description: "API local iniciada e aguardando comandos confirmados.",
+    read: false,
+    createdAt: "hoje",
+  },
+];
+
 export const hermesSnapshot: HermesSnapshot = {
   user,
   status: hermesStatus,
@@ -312,4 +371,8 @@ export const hermesSnapshot: HermesSnapshot = {
   pc: hermesPc,
   securitySettings,
   initialChat,
+  metrics: systemMetrics,
+  tasks,
+  devices: authorizedDevices,
+  notifications,
 };

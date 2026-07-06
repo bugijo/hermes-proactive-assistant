@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { suggestions, type Suggestion } from "@/services/mock-hermes-data";
+import { useSuggestions } from "@/hooks/use-hermes-data";
+import type { Suggestion } from "@/types/hermes";
 import { Check, X, Clock, Info, Tag, Bell, MessageSquare, ListTodo } from "lucide-react";
 import { useState } from "react";
+import { hermesService } from "@/services/hermes-service";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 
 export const Route = createFileRoute("/suggestions")({
   head: () => ({ meta: [{ title: "Sugestões — Hermes Mobile" }] }),
@@ -24,7 +27,14 @@ const labelMap: Record<Suggestion["type"], string> = {
 };
 
 function SuggestionsPage() {
+  const { data: suggestions } = useSuggestions();
   const [handled, setHandled] = useState<Record<string, "approved" | "ignored" | "later">>({});
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  const handle = (id: string, state: "approved" | "ignored" | "later") => {
+    setHandled((current) => ({ ...current, [id]: state }));
+    void hermesService.updateSuggestion(id, state);
+  };
 
   return (
     <MobileShell>
@@ -63,18 +73,18 @@ function SuggestionsPage() {
               ) : (
                 <div className="mt-3 grid grid-cols-4 gap-2">
                   <ActionBtn
-                    onClick={() => setHandled((h) => ({ ...h, [s.id]: "approved" }))}
+                    onClick={() => setConfirmId(s.id)}
                     icon={<Check className="h-4 w-4" />}
                     label="Aprovar"
                     primary
                   />
                   <ActionBtn
-                    onClick={() => setHandled((h) => ({ ...h, [s.id]: "ignored" }))}
+                    onClick={() => handle(s.id, "ignored")}
                     icon={<X className="h-4 w-4" />}
                     label="Ignorar"
                   />
                   <ActionBtn
-                    onClick={() => setHandled((h) => ({ ...h, [s.id]: "later" }))}
+                    onClick={() => handle(s.id, "later")}
                     icon={<Clock className="h-4 w-4" />}
                     label="Depois"
                   />
@@ -85,6 +95,16 @@ function SuggestionsPage() {
           );
         })}
       </ul>
+      <ConfirmActionDialog
+        open={Boolean(confirmId)}
+        title="Aprovar esta sugestão?"
+        description="A aprovação será registrada como confirmada, mas nenhuma ação externa será executada nesta fase."
+        onCancel={() => setConfirmId(null)}
+        onConfirm={() => {
+          if (confirmId) handle(confirmId, "approved");
+          setConfirmId(null);
+        }}
+      />
     </MobileShell>
   );
 }

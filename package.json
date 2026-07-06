@@ -5,10 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "dev:all": "bun run scripts/dev-all.ts",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "backend:dev": "bun --watch backend/src/server.ts",
+    "backend:start": "bun backend/src/server.ts",
+    "backend:test": "bun test backend/tests",
     "format": "prettier --write ."
   },
   "dependencies": {

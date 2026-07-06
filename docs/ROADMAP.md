@@ -9,9 +9,10 @@
 
 ## Fase 2 — Backend/API
 
-- Criar API com autenticação, usuários e dispositivos pareados.
-- Persistir sugestões, automações, permissões e logs.
-- Substituir `mockHermesService` por cliente HTTP.
+- Evoluir a API local Bun/SQLite para autenticação, usuários e dispositivos pareados.
+- Versionar migrations e seeds.
+- Expandir persistência de sugestões, automações, permissões, chat e logs.
+- Substituir endpoints simulados por integrações reais gradualmente.
 
 ## Fase 3 — Android
 

@@ -1,0 +1,13 @@
+{
+  "name": "hermes-mobile-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "start": "bun src/server.ts",
+    "seed": "HERMES_SEED=true bun src/database/index.ts",
+    "test": "bun test tests"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

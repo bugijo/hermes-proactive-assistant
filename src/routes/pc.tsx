@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { hermesPc } from "@/services/mock-hermes-data";
+import { usePcStatus } from "@/hooks/use-hermes-data";
 import { Monitor, RefreshCw, Brain, Folder, Terminal, HardDrive } from "lucide-react";
 
 export const Route = createFileRoute("/pc")({
@@ -16,6 +16,7 @@ const iconMap = {
 } as const;
 
 function PcPage() {
+  const { data: hermesPc } = usePcStatus();
   const { connected, ip, lastSync, tasks, modules } = hermesPc;
 
   return (

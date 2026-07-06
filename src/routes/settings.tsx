@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
 import { ChevronRight, ShieldCheck, Smartphone, Monitor, Info } from "lucide-react";
+import { authApi } from "@/services/hermes-service";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Configurações — Hermes Mobile" }] }),
@@ -54,10 +55,18 @@ function SettingsPage() {
         <div>
           <p className="text-sm font-semibold">Hermes Mobile</p>
           <p className="text-xs text-muted-foreground">
-            Versão 0.1.0 · Frontend com dados fictícios.
+            Versão 0.2.0 · API local com fallback demo.
           </p>
         </div>
       </div>
+      {authApi.hasSession() && (
+        <button
+          onClick={() => void authApi.logout().then(() => window.location.reload())}
+          className="mt-3 w-full rounded-2xl border border-border py-2.5 text-xs text-muted-foreground"
+        >
+          Encerrar sessão local
+        </button>
+      )}
     </MobileShell>
   );
 }

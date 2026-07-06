@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { securitySettings } from "@/services/mock-hermes-data";
+import { useSecuritySettings } from "@/hooks/use-hermes-data";
 import { PauseCircle, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import { hermesService } from "@/services/hermes-service";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 
 export const Route = createFileRoute("/security")({
   head: () => ({ meta: [{ title: "Segurança — Hermes Mobile" }] }),
@@ -10,8 +12,20 @@ export const Route = createFileRoute("/security")({
 });
 
 function SecurityPage() {
+  const { data: securitySettings } = useSecuritySettings();
   const [items, setItems] = useState(securitySettings);
   const [paused, setPaused] = useState(false);
+  const [pending, setPending] = useState<number | null>(null);
+  const apply = () => {
+    if (pending === null) return;
+    const setting = items[pending];
+    const enabled = !setting.enabled;
+    setItems((current) =>
+      current.map((item, index) => (index === pending ? { ...item, enabled } : item)),
+    );
+    void hermesService.updateSecuritySetting(setting.id, enabled);
+    setPending(null);
+  };
 
   return (
     <MobileShell>
@@ -41,9 +55,7 @@ function SecurityPage() {
             <button
               role="switch"
               aria-checked={s.enabled}
-              onClick={() =>
-                setItems((cur) => cur.map((x, j) => (j === i ? { ...x, enabled: !x.enabled } : x)))
-              }
+              onClick={() => setPending(i)}
               className={
                 "relative h-7 w-12 shrink-0 rounded-full border border-border transition-colors " +
                 (s.enabled ? "gradient-primary glow" : "bg-background/60")
@@ -72,6 +84,13 @@ function SecurityPage() {
         <PauseCircle className="h-5 w-5" />
         {paused ? "Retomar Hermes" : "Pausar Hermes"}
       </button>
+      <ConfirmActionDialog
+        open={pending !== null}
+        title="Alterar regra de segurança?"
+        description="Confirme a mudança. A nova preferência ficará registrada e auditada localmente."
+        onCancel={() => setPending(null)}
+        onConfirm={apply}
+      />
     </MobileShell>
   );
 }
