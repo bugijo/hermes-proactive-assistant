@@ -15,7 +15,7 @@
     "backend:dev": "bun --watch backend/src/server.ts",
     "backend:start": "bun backend/src/server.ts",
     "backend:test": "bun test backend/tests",
-    "phase4:test": "bun test backend/tests src/services",
+    "phase4:test": "bun test src/services",
     "cap:sync": "bun run cap:web && bunx cap sync android",
     "cap:open": "bunx cap open android",
     "android:debug": "bun run cap:sync && cd android && ./gradlew assembleDebug",
