@@ -1,6 +1,6 @@
 # Hermes Mobile
 
-Hermes Mobile é um app mobile-first/PWA com frontend React preservado do Lovable e API local Bun + SQLite. A Fase 3 adiciona dados persistentes, autenticação local, CRUD dos domínios principais e testes sem executar automações externas.
+Hermes Mobile é um app mobile-first/PWA com frontend React preservado do Lovable, API local Bun + SQLite e projeto Android Capacitor. A Fase 4 mantém o navegador funcionando e adiciona uma ponte nativa leve, notificações, preferências e pareamento preparatório.
 
 ## O que funciona nesta fase
 
@@ -10,6 +10,10 @@ Hermes Mobile é um app mobile-first/PWA com frontend React preservado do Lovabl
 - Logs auditáveis para alterações importantes.
 - Login no frontend, operações persistidas e confirmações visuais para ações sensíveis.
 - Fallback mock quando a API não estiver configurada ou estiver offline, com aviso `Modo offline/demo`.
+- Capacitor 8 com projeto Android, plugins oficiais e sessão criptografada pelo Android Keystore.
+- Bateria, rede, dispositivo, links, compartilhamento e notificações com fallback web.
+- Preferências de bateria/dados móveis, horários silenciosos e frequência de sincronização.
+- Tokens de pareamento temporários, QR, aprovação manual e revogação de computadores.
 
 WhatsApp, Telegram, compras, exclusão de arquivos, controle de tela, permissões Android e automações reais **não são executados**. Pedidos desse tipo permanecem como rascunho ou pendentes de confirmação.
 
@@ -43,7 +47,20 @@ Sem `VITE_HERMES_API_URL`, o frontend inicia diretamente em modo demo. Se a API 
 bun run lint
 bun run build
 bun run backend:test
+bun run phase4:test
+bun run cap:sync
 ```
+
+## Android
+
+```bash
+bun run cap:web       # shell estático para o APK
+bun run cap:sync      # build + sincronização Android
+bun run cap:open      # Android Studio
+bun run android:debug # APK debug
+```
+
+Consulte [docs/ANDROID_SETUP.md](docs/ANDROID_SETUP.md) e [docs/PAIRING_PROTOCOL.md](docs/PAIRING_PROTOCOL.md).
 
 ## Variáveis de ambiente
 
@@ -71,7 +88,9 @@ src/
   hooks/          Consultas TanStack Query.
   routes/         Telas preservadas.
   services/       API real com fallback mock.
+  services/native/ Notificações, preferências e guardas de ações.
+  services/platform/ Adapters Capacitor/web.
   types/          Contratos do frontend.
 ```
 
-Mais detalhes: [API](docs/API.md), [arquitetura](docs/ARCHITECTURE.md), [segurança](docs/SECURITY.md) e [próxima fase](docs/NEXT_PHASE.md).
+Mais detalhes: [API](docs/API.md), [arquitetura](docs/ARCHITECTURE.md), [segurança](docs/SECURITY.md), [Android](docs/ANDROID_SETUP.md) e [próxima fase](docs/NEXT_PHASE.md).

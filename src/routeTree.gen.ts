@@ -14,6 +14,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SecurityRouteImport } from './routes/security'
 import { Route as PromotionsRouteImport } from './routes/promotions'
 import { Route as PcRouteImport } from './routes/pc'
+import { Route as NativeRouteImport } from './routes/native'
 import { Route as DeviceRouteImport } from './routes/device'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as AutomationsRouteImport } from './routes/automations'
@@ -44,6 +45,11 @@ const PcRoute = PcRouteImport.update({
   path: '/pc',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NativeRoute = NativeRouteImport.update({
+  id: '/native',
+  path: '/native',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DeviceRoute = DeviceRouteImport.update({
   id: '/device',
   path: '/device',
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/automations': typeof AutomationsRoute
   '/chat': typeof ChatRoute
   '/device': typeof DeviceRoute
+  '/native': typeof NativeRoute
   '/pc': typeof PcRoute
   '/promotions': typeof PromotionsRoute
   '/security': typeof SecurityRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/automations': typeof AutomationsRoute
   '/chat': typeof ChatRoute
   '/device': typeof DeviceRoute
+  '/native': typeof NativeRoute
   '/pc': typeof PcRoute
   '/promotions': typeof PromotionsRoute
   '/security': typeof SecurityRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/automations': typeof AutomationsRoute
   '/chat': typeof ChatRoute
   '/device': typeof DeviceRoute
+  '/native': typeof NativeRoute
   '/pc': typeof PcRoute
   '/promotions': typeof PromotionsRoute
   '/security': typeof SecurityRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/automations'
     | '/chat'
     | '/device'
+    | '/native'
     | '/pc'
     | '/promotions'
     | '/security'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/automations'
     | '/chat'
     | '/device'
+    | '/native'
     | '/pc'
     | '/promotions'
     | '/security'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/automations'
     | '/chat'
     | '/device'
+    | '/native'
     | '/pc'
     | '/promotions'
     | '/security'
@@ -140,6 +152,7 @@ export interface RootRouteChildren {
   AutomationsRoute: typeof AutomationsRoute
   ChatRoute: typeof ChatRoute
   DeviceRoute: typeof DeviceRoute
+  NativeRoute: typeof NativeRoute
   PcRoute: typeof PcRoute
   PromotionsRoute: typeof PromotionsRoute
   SecurityRoute: typeof SecurityRoute
@@ -184,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PcRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/native': {
+      id: '/native'
+      path: '/native'
+      fullPath: '/native'
+      preLoaderRoute: typeof NativeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/device': {
       id: '/device'
       path: '/device'
@@ -220,6 +240,7 @@ const rootRouteChildren: RootRouteChildren = {
   AutomationsRoute: AutomationsRoute,
   ChatRoute: ChatRoute,
   DeviceRoute: DeviceRoute,
+  NativeRoute: NativeRoute,
   PcRoute: PcRoute,
   PromotionsRoute: PromotionsRoute,
   SecurityRoute: SecurityRoute,

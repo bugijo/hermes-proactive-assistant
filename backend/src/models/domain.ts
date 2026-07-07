@@ -16,14 +16,18 @@ export interface DeviceRecord {
   ip?: string;
   lastSync?: string;
   revoked: boolean;
-  token?: string;
   publicKey?: string;
   metadata?: unknown;
+  approvalStatus?: "pending" | "approved" | "revoked";
+  status?: "connected" | "offline" | "pending_approval" | "revoked";
+  pairedAt?: string;
 }
-export interface PairingCode {
+export interface PairingToken {
+  id: string;
   code: string;
-  qrPayload: string;
+  publicKey: string;
   expiresAt: string;
+  status: "waiting" | "expired" | "claimed";
 }
 export interface SystemMetrics {
   cpu: number;

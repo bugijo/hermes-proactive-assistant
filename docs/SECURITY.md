@@ -18,6 +18,8 @@ Não armazenar tokens, chaves, histórico de mensagens ou dados de pareamento em
 - Tokens de sessão são opacos, expiram e ficam no SQLite somente como SHA-256.
 - Logout revoga a sessão; rotas `/api/*`, exceto status/bootstrap/login, exigem bearer token.
 - O frontend mantém o token em `sessionStorage`, não em arquivos ou código-fonte.
+- No APK, a sessão é cifrada com AES-GCM e chave não exportável do Android Keystore; backup do armazenamento está desativado.
+- Preferências não secretas usam Capacitor Preferences e nunca recebem senha/token.
 - `.env`, bancos locais e derivados são ignorados pelo Git.
 
 Esta é segurança local de desenvolvimento, não um modelo pronto para exposição na internet. Não publique a porta da API em rede pública.
@@ -29,6 +31,19 @@ Esta é segurança local de desenvolvimento, não um modelo pronto para exposiç
 - Rotação/revogação de tokens por dispositivo.
 - Lista de permissões por módulo do PC.
 - Confirmação obrigatória para envio de mensagens, compras, exclusão de arquivos e comandos remotos destrutivos.
+- Token de pareamento tem uso único, hash no SQLite e expiração máxima de cinco minutos.
+- Claim cria estado `pending_approval`; aprovação manual é separada.
+- IP local é apenas metadado de rede, jamais identidade.
+
+O protocolo preparatório está em [PAIRING_PROTOCOL.md](PAIRING_PROTOCOL.md).
+
+## Ponte nativa
+
+- Abrir app exige confirmação visual e confirmação também no endpoint de auditoria.
+- Compartilhar e abrir link só ocorrem por gesto explícito na tela.
+- A API não possui endpoint de comando remoto.
+- Mensagens, compras, arquivos e controle de tela são bloqueados com `ACTION_NOT_AVAILABLE`.
+- O build release não permite conteúdo HTTP misto; HTTP local é liberado somente no manifest debug.
 
 ## PWA
 

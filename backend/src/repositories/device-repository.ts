@@ -1,5 +1,5 @@
 import { db } from "../database";
-import type { DeviceRecord, PairingCode } from "../models/domain";
+import type { DeviceRecord, PairingToken } from "../models/domain";
 
 const parseMetadata = (value?: string | null) => (value ? JSON.parse(value) : undefined);
 
@@ -8,60 +8,87 @@ export const deviceRepository = {
     return (
       db
         .query(
-          "SELECT id, name, type, connected, ip, last_sync as lastSync, token_hash as token, public_key as publicKey, revoked, metadata FROM devices ORDER BY created_at DESC",
+          "SELECT id,name,type,connected,ip,last_sync AS lastSync,public_key AS publicKey,revoked,approval_status AS approvalStatus,paired_at AS pairedAt,metadata FROM devices ORDER BY created_at DESC",
         )
         .all() as Array<DeviceRecord & { connected: number; revoked: number; metadata?: string }>
     ).map((device) => ({
       ...device,
       connected: Boolean(device.connected),
       revoked: Boolean(device.revoked),
+      status: device.revoked
+        ? "revoked"
+        : device.approvalStatus === "pending"
+          ? "pending_approval"
+          : device.connected
+            ? "connected"
+            : "offline",
       metadata: parseMetadata(device.metadata),
     }));
   },
-  revoke(id: string) {
+  createPairingToken(input: {
+    id: string;
+    code: string;
+    tokenHash: string;
+    publicKey: string;
+    userId: string;
+    expiresAt: string;
+  }): PairingToken {
     db.prepare(
-      "UPDATE devices SET revoked = 1, connected = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-    ).run(id);
-  },
-  createPairingCode(input: { code: string; publicKey: string; expiresAt: string }): PairingCode {
-    db.prepare("INSERT INTO pairing_codes (code, public_key, expires_at) VALUES (?, ?, ?)").run(
-      input.code,
-      input.publicKey,
-      input.expiresAt,
-    );
+      "INSERT INTO pairing_tokens (id,code,token_hash,public_key,created_by,expires_at) VALUES (?,?,?,?,?,?)",
+    ).run(input.id, input.code, input.tokenHash, input.publicKey, input.userId, input.expiresAt);
     return {
+      id: input.id,
       code: input.code,
+      publicKey: input.publicKey,
       expiresAt: input.expiresAt,
-      qrPayload: JSON.stringify({
-        type: "hermes-pc-pair",
-        code: input.code,
-        publicKey: input.publicKey,
-      }),
+      status: "waiting",
     };
   },
-  claimPairingCode(input: {
-    code: string;
-    deviceName: string;
-    deviceType: string;
+  findActivePairingToken(code: string, tokenHash: string) {
+    return db
+      .query(
+        "SELECT id,code,public_key AS publicKey,created_by AS createdBy,expires_at AS expiresAt FROM pairing_tokens WHERE code=? AND token_hash=? AND used_at IS NULL AND julianday(expires_at)>julianday('now')",
+      )
+      .get(code, tokenHash) as {
+      id: string;
+      code: string;
+      publicKey: string;
+      createdBy: string;
+      expiresAt: string;
+    } | null;
+  },
+  markPairingTokenUsed(id: string) {
+    db.prepare("UPDATE pairing_tokens SET used_at=CURRENT_TIMESTAMP WHERE id=?").run(id);
+  },
+  expirePairingToken(id: string) {
+    db.prepare("UPDATE pairing_tokens SET expires_at=datetime('now','-1 second') WHERE id=?").run(
+      id,
+    );
+  },
+  createPendingDevice(input: {
+    name: string;
+    type: string;
     publicKey: string;
-    tokenHash: string;
+    metadata?: unknown;
   }) {
-    const code = db
-      .query("SELECT code, expires_at as expiresAt, claimed FROM pairing_codes WHERE code = ?")
-      .get(input.code) as { code: string; expiresAt: string; claimed: number } | null;
-    if (!code || code.claimed || new Date(code.expiresAt).getTime() < Date.now()) return null;
     const id = `device-${crypto.randomUUID()}`;
     db.prepare(
-      "INSERT INTO devices (id, name, type, connected, public_key, token_hash, metadata) VALUES (?, ?, ?, 1, ?, ?, ?)",
-    ).run(
-      id,
-      input.deviceName,
-      input.deviceType,
-      input.publicKey,
-      input.tokenHash,
-      JSON.stringify({ pairedAt: new Date().toISOString() }),
-    );
-    db.prepare("UPDATE pairing_codes SET claimed = 1 WHERE code = ?").run(input.code);
+      "INSERT INTO devices (id,name,type,connected,public_key,approval_status,metadata) VALUES (?,?,?,0,?,'pending',?)",
+    ).run(id, input.name, input.type, input.publicKey, JSON.stringify(input.metadata ?? {}));
     return id;
+  },
+  approve(id: string) {
+    return db
+      .prepare(
+        "UPDATE devices SET approval_status='approved',paired_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND revoked=0",
+      )
+      .run(id).changes;
+  },
+  revoke(id: string) {
+    return db
+      .prepare(
+        "UPDATE devices SET revoked=1,connected=0,approval_status='revoked',token_hash=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+      )
+      .run(id).changes;
   },
 };

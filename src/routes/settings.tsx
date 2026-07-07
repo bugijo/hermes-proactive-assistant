@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
-import { ChevronRight, ShieldCheck, Smartphone, Monitor, Info } from "lucide-react";
+import { ChevronRight, ShieldCheck, Smartphone, Monitor, Info, Bell } from "lucide-react";
 import { authApi } from "@/services/hermes-service";
 
 export const Route = createFileRoute("/settings")({
@@ -22,6 +22,12 @@ const items = [
     desc: "Permissões do Hermes no Android",
   },
   { to: "/pc", icon: Monitor, title: "Hermes PC", desc: "Sincronização com o desktop" },
+  {
+    to: "/native",
+    icon: Bell,
+    title: "Dispositivo e notificações",
+    desc: "Bateria, rede e preferências nativas",
+  },
 ] as const;
 
 function SettingsPage() {

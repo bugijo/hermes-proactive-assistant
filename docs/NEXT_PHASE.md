@@ -1,11 +1,11 @@
 # Próxima fase
 
-A Fase 3 termina na API local autenticada, persistência SQLite, UI funcional e ações apenas registradas. A próxima fase deve avançar nesta ordem:
+A Fase 4 entrega o contêiner Android, ponte nativa leve e protocolo preparatório. Os próximos passos devem avançar nesta ordem:
 
-1. **Pareamento seguro Hermes Mobile ↔ Hermes PC** — identidade de dispositivos, troca e rotação de chaves, revogação e canal local autenticado.
-2. **Transformação em APK com Capacitor** — projeto Android reproduzível sem abandonar a PWA/web.
-3. **Permissões Android reais** — integração nativa de menor privilégio, com telas de consentimento e estados coerentes com o sistema.
-4. **Notificações** — canais Android, preferências e conteúdo que não exponha dados sensíveis na tela bloqueada.
-5. **Conectores confirmados** — Telegram, navegador e futuro WhatsApp, sempre preparando rascunhos e exigindo confirmação antes de qualquer ação externa.
+1. **Hermes PC real** — substituir chave mock por X25519/Ed25519, prova de posse, TLS e canal autenticado sem comandos genéricos.
+2. **Agendamento Android de baixo consumo** — WorkManager com restrições de Wi-Fi/bateria, sem serviço permanente.
+3. **Permissões Android por capacidade** — consentimento de menor privilégio e revogação visível.
+4. **Assinatura/release** — keystore fora do Git, CI protegida, revisão de backup e Network Security Config.
+5. **Conectores confirmados** — Telegram, navegador e futuro WhatsApp apenas por ações tipadas, rascunho e confirmação explícita.
 
 Continuam fora de escopo até essa infraestrutura existir: compras automáticas, exclusão de arquivos, controle de tela, envio autônomo de mensagens e execução irreversível em segundo plano.

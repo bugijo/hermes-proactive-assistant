@@ -3,6 +3,7 @@ import { db } from "../database";
 import { requireAuth, bearerToken } from "../middleware/auth";
 import { domainRepository } from "../repositories/domain-repository";
 import { taskRepository } from "../repositories/task-repository";
+import { nativeRepository } from "../repositories/native-repository";
 import { authService } from "../services/auth-service";
 import { deviceService } from "../services/device-service";
 import { ApiError, json, readJson } from "../utils/http";
@@ -65,6 +66,8 @@ export async function handleHttpRoute(
     return json(await authService.registerFirstUser(await readJson(request)), { status: 201 });
   if (method === "POST" && path === "/api/auth/login")
     return json(await authService.login(await readJson(request)));
+  if (method === "POST" && path === "/api/pairing/claim")
+    return json(await deviceService.claimPairingToken(await readJson(request)), { status: 201 });
 
   const auth = await requireAuth(request);
   const audit = (
@@ -272,21 +275,31 @@ export async function handleHttpRoute(
     return json({ ok: true, status: "pending_confirmation", pc: pcStatus() });
   }
   if (method === "GET" && path === "/api/devices") return json(deviceService.listDevices());
+  if (method === "POST" && path === "/api/pairing-tokens") {
+    const body = await readJson<{ ttlSeconds?: number }>(request);
+    const ttlSeconds = process.env.NODE_ENV === "test" ? body.ttlSeconds : undefined;
+    return json(await deviceService.createPairingToken(auth.user.id, ttlSeconds), {
+      status: 201,
+    });
+  }
+  const expirePairingId = path.match(/^\/api\/pairing-tokens\/([^/]+)\/expire$/)?.[1];
+  if (expirePairingId && method === "POST") {
+    deviceService.expirePairingToken(expirePairingId);
+    audit("pairing.token.expired", "pairing_tokens", expirePairingId);
+    return json({ ok: true });
+  }
   if (method === "POST" && path === "/api/devices/pairing-code") {
-    const item = deviceService.createPairingCode();
-    audit("device.pairing.draft_created", "pairing_codes", item.code, "draft");
-    return json({ ...item, status: "draft" }, { status: 201 });
+    return json(await deviceService.createPairingToken(auth.user.id), { status: 201 });
   }
   if (method === "POST" && path === "/api/devices/claim") {
-    const item = await deviceService.claimPairingCode(await readJson(request));
-    audit("device.pairing.claimed", "devices", item.id, "confirmed");
-    return json(item, { status: 201 });
+    return json(await deviceService.claimPairingToken(await readJson(request)), { status: 201 });
   }
+  const approveDeviceId = path.match(/^\/api\/devices\/([^/]+)\/approve$/)?.[1];
+  if (approveDeviceId && method === "POST")
+    return json(deviceService.approveDevice(auth.user.id, approveDeviceId));
   const deviceId = resourceId(path, "devices");
   if (deviceId && method === "DELETE") {
-    deviceService.revokeDevice(deviceId);
-    audit("device.revoked", "devices", deviceId, "confirmed");
-    return json({ ok: true });
+    return json(deviceService.revokeDevice(auth.user.id, deviceId));
   }
   if (method === "GET" && path === "/api/tasks") return json(taskRepository.listTasks());
   if (method === "POST" && path === "/api/tasks") {
@@ -308,11 +321,94 @@ export async function handleHttpRoute(
   }
   if (method === "GET" && path === "/api/notifications")
     return json(taskRepository.listNotifications());
+  if (method === "POST" && path === "/api/notifications") {
+    const body = await readJson<{
+      title?: string;
+      description?: string;
+      type?: string;
+      scheduledFor?: string;
+    }>(request);
+    if (!body.title || !body.description)
+      throw new ApiError(400, "INVALID_NOTIFICATION", "Título e descrição são obrigatórios.");
+    const item = nativeRepository.createNotification({
+      title: body.title,
+      description: body.description,
+      type: body.type,
+      scheduledFor: body.scheduledFor,
+    });
+    audit("notification.created", "notifications", item.id, "confirmed", { type: body.type });
+    return json(item, { status: 201 });
+  }
   const notificationRead = path.match(/^\/api\/notifications\/([^/]+)\/read$/)?.[1];
   if (notificationRead && method === "POST") {
     taskRepository.markNotificationRead(notificationRead);
     audit("notification.read", "notifications", notificationRead);
     return json({ ok: true });
+  }
+
+  if (path === "/api/preferences/notifications") {
+    if (method === "GET") return json(nativeRepository.preferences(auth.user.id));
+    if (method === "PUT" || method === "PATCH") {
+      const item = nativeRepository.savePreferences(auth.user.id, await readJson(request));
+      audit(
+        "notification_preferences.updated",
+        "notification_preferences",
+        auth.user.id,
+        "confirmed",
+        item,
+      );
+      return json(item);
+    }
+  }
+
+  if (method === "POST" && path === "/api/native-actions") {
+    const body = await readJson<{
+      action?: string;
+      payload?: unknown;
+      confirmationStatus?: string;
+    }>(request);
+    if (!body.action) throw new ApiError(400, "ACTION_REQUIRED", "A ação nativa é obrigatória.");
+    const unavailable = new Set([
+      "send_message",
+      "purchase",
+      "delete_file",
+      "remote_command",
+      "control_screen",
+    ]);
+    if (unavailable.has(body.action)) {
+      audit("native_action.blocked", "native_action_requests", undefined, "pending_confirmation", {
+        action: body.action,
+      });
+      throw new ApiError(403, "ACTION_NOT_AVAILABLE", "Esta ação não está disponível nesta fase.");
+    }
+    if (body.action === "open_app" && body.confirmationStatus !== "confirmed") {
+      audit(
+        "native_action.confirmation_required",
+        "native_action_requests",
+        undefined,
+        "pending_confirmation",
+        { action: body.action },
+      );
+      throw new ApiError(
+        409,
+        "CONFIRMATION_REQUIRED",
+        "Confirmação explícita é obrigatória para abrir aplicativos.",
+      );
+    }
+    const item = nativeRepository.createNativeAction({
+      userId: auth.user.id,
+      action: body.action,
+      payload: body.payload,
+      confirmationStatus: body.confirmationStatus ?? "draft",
+    });
+    audit(
+      "native_action.recorded",
+      "native_action_requests",
+      item.id,
+      confirmation(body.confirmationStatus),
+      { action: body.action },
+    );
+    return json(item, { status: 201 });
   }
 
   if (method === "POST" && path === "/api/action-logs") {
