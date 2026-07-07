@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { unlinkSync } from "node:fs";
+import { Database } from "bun:sqlite";
 
 let proc: Bun.Subprocess | undefined;
 let token = "";
@@ -54,7 +55,7 @@ afterAll(() => {
   }
 });
 
-describe("API local Fase 3", () => {
+describe("API local Hermes Mobile", () => {
   test("health check", async () => {
     const { response, body } = await api("/health", {}, false);
     expect(response.status).toBe(200);
@@ -172,22 +173,44 @@ describe("API local Fase 3", () => {
   test("pareia, aprova e revoga um computador", async () => {
     const pairing = await api("/api/pairing-tokens", { method: "POST", body: "{}" });
     expect(pairing.response.status).toBe(201);
+    expect(pairing.body.data.token.length).toBeGreaterThan(40);
+    const ttl = new Date(pairing.body.data.expiresAt).getTime() - Date.now();
+    expect(ttl).toBeGreaterThan(295_000);
+    expect(ttl).toBeLessThanOrEqual(300_000);
+    const inspection = new Database(dbPath, { readonly: true });
+    const stored = inspection
+      .query("SELECT token_hash AS tokenHash FROM pairing_tokens WHERE id = ?")
+      .get(pairing.body.data.id) as { tokenHash: string };
+    inspection.close();
+    expect(stored.tokenHash).toHaveLength(64);
+    expect(stored.tokenHash).not.toBe(pairing.body.data.token);
+    const claimBody = {
+      code: pairing.body.data.code,
+      token: pairing.body.data.token,
+      deviceName: "PC Teste",
+      publicKey: "mock-pc-public-key",
+    };
     const claim = await api(
       "/api/pairing/claim",
       {
         method: "POST",
-        body: JSON.stringify({
-          code: pairing.body.data.code,
-          token: pairing.body.data.token,
-          deviceName: "PC Teste",
-          publicKey: "mock-pc-public-key",
-        }),
+        body: JSON.stringify(claimBody),
       },
       false,
     );
     expect(claim.response.status).toBe(201);
     expect(claim.body.data.status).toBe("pending_approval");
     const deviceId = claim.body.data.id;
+    const beforeApproval = await api("/api/devices");
+    expect(
+      beforeApproval.body.data.find((item: { id: string }) => item.id === deviceId).status,
+    ).toBe("pending_approval");
+    const reused = await api(
+      "/api/pairing/claim",
+      { method: "POST", body: JSON.stringify(claimBody) },
+      false,
+    );
+    expect(reused.response.status).toBe(410);
     const approved = await api(`/api/devices/${deviceId}/approve`, { method: "POST" });
     expect(approved.body.data.status).toBe("offline");
     const revoked = await api(`/api/devices/${deviceId}`, { method: "DELETE" });

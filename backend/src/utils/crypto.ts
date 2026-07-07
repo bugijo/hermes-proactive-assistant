@@ -14,5 +14,10 @@ export async function hashToken(token: string) {
 }
 
 export function randomToken(prefix: string) {
-  return `${prefix}_${crypto.randomUUID()}_${crypto.randomUUID().replaceAll("-", "")}`;
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const encoded = btoa(String.fromCharCode(...bytes))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
+  return `${prefix}_${encoded}`;
 }

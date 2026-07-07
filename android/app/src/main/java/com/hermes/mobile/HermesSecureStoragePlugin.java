@@ -81,6 +81,9 @@ public class HermesSecureStoragePlugin extends Plugin {
         }
         try {
             String[] parts = payload.split("\\.", 2);
+            if (parts.length != 2 || parts[0].isEmpty() || parts[1].isEmpty()) {
+                throw new IllegalArgumentException("Invalid encrypted payload");
+            }
             Cipher cipher = Cipher.getInstance(TRANSFORMATION);
             cipher.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)));
             byte[] clear = cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP));
@@ -88,7 +91,8 @@ public class HermesSecureStoragePlugin extends Plugin {
             call.resolve(result);
         } catch (Exception error) {
             preferences().edit().remove(itemKey).apply();
-            call.reject("Unable to decrypt stored value", error);
+            result.put("value", JSObject.NULL);
+            call.resolve(result);
         }
     }
 

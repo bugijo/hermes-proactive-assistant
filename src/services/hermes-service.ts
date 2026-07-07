@@ -34,6 +34,7 @@ import type {
 } from "@/types/hermes";
 import type { NativePreferences } from "@/services/native/preferences-service";
 import { platformService } from "@/services/platform";
+import { readSecureValue } from "@/services/platform/secure-storage";
 
 const clone = <T>(data: T): T => JSON.parse(JSON.stringify(data)) as T;
 const delay = <T>(data: T, ms = 100): Promise<T> =>
@@ -57,7 +58,7 @@ let tokenCache: string | null = null;
 let restorePromise: Promise<string | null> | null = null;
 const getToken = async () => {
   if (tokenCache) return tokenCache;
-  restorePromise ??= platformService.secureGet(TOKEN_KEY);
+  restorePromise ??= readSecureValue(platformService, TOKEN_KEY);
   tokenCache = await restorePromise;
   return tokenCache;
 };

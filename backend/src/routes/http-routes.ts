@@ -277,7 +277,8 @@ export async function handleHttpRoute(
   if (method === "GET" && path === "/api/devices") return json(deviceService.listDevices());
   if (method === "POST" && path === "/api/pairing-tokens") {
     const body = await readJson<{ ttlSeconds?: number }>(request);
-    return json(await deviceService.createPairingToken(auth.user.id, body.ttlSeconds), {
+    const ttlSeconds = process.env.NODE_ENV === "test" ? body.ttlSeconds : undefined;
+    return json(await deviceService.createPairingToken(auth.user.id, ttlSeconds), {
       status: 201,
     });
   }
