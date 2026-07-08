@@ -27,6 +27,9 @@ bun install --frozen-lockfile
 
 Revise `.env` se as portas `8080` ou `8787` estiverem ocupadas. Não envie esse arquivo para o Git.
 
+Mantenha `HERMES_BIND_HOST=127.0.0.1`. Usar `0.0.0.0` libera a API HTTP para a rede local e não é
+recomendado sem TLS, firewall e uma necessidade explícita de desenvolvimento.
+
 ## 4. Rodar
 
 ```bash

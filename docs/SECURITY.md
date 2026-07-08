@@ -24,6 +24,10 @@ Não armazenar tokens, chaves, histórico de mensagens ou dados de pareamento em
 
 Esta é segurança local de desenvolvimento, não um modelo pronto para exposição na internet. Não publique a porta da API em rede pública.
 
+O bind padrão é `127.0.0.1`. Definir `HERMES_BIND_HOST=0.0.0.0` expõe a API HTTP à LAN e só deve
+ser feito conscientemente em rede confiável; CORS não substitui TLS, firewall ou autenticação.
+Login, bootstrap e pareamento usam rate limiting em memória para reduzir força bruta e abuso local.
+
 ## Integração com Hermes PC
 
 - Pareamento com prova de posse, preferencialmente QR code.
@@ -54,3 +58,14 @@ O service worker atual é mínimo e cacheia apenas o shell. Antes de produção,
 A API local registra ações operacionais e sensíveis em `action_logs`. A existência de log não autoriza execução automática: ações destrutivas ou externas continuam exigindo confirmação explícita.
 
 Os estados auditáveis são `draft`, `pending_confirmation` e `confirmed`. Mesmo `confirmed` representa apenas a decisão local nesta fase: não existe conector capaz de comprar, enviar mensagens, apagar arquivos ou controlar a tela.
+
+O cliente não pode criar eventos forenses arbitrários. O endpoint de escrita aceita apenas notas
+informativas validadas, marcadas como `client.note.created`; eventos de segurança e operação são
+gerados internamente pela API.
+
+## Políticas e preferências
+
+Bloqueios de mensagens, compras, exclusão de arquivos, controle de tela e comandos remotos são
+políticas obrigatórias e fail-closed. A tela de segurança as apresenta como somente leitura.
+Controles que ainda não governam enforcement real aparecem como “Em preparação” e não podem ser
+ativados. “Pausar Hermes” também permanece desabilitado até possuir persistência e efeito verificável.

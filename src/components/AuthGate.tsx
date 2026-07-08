@@ -6,6 +6,7 @@ import {
 } from "@/services/hermes-service";
 import { Sparkles } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { ConnectionModeContext } from "@/hooks/use-connection-mode";
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus | null>(null);
@@ -53,14 +54,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
     );
   }
   return (
-    <>
+    <ConnectionModeContext.Provider value={mode}>
       {mode === "offline" && (
-        <div className="fixed right-3 top-3 z-50 rounded-full border border-border bg-card/90 px-2.5 py-1 text-[10px] text-muted-foreground shadow">
-          Modo offline/demo
+        <div className="pointer-events-none fixed right-3 top-3 z-50 rounded-full border border-border bg-card/95 px-2.5 py-1 text-[10px] text-muted-foreground shadow">
+          Modo demo/offline · alterações bloqueadas
         </div>
       )}
       {children}
-    </>
+    </ConnectionModeContext.Provider>
   );
 }
 

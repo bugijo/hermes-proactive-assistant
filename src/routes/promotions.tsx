@@ -6,6 +6,8 @@ import { ExternalLink, Plus, Star, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { hermesService } from "@/services/hermes-service";
 import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
+import { OperationFeedback } from "@/components/OperationFeedback";
+import { useConnectionMode } from "@/hooks/use-connection-mode";
 
 export const Route = createFileRoute("/promotions")({
   head: () => ({ meta: [{ title: "Promoções — Hermes Mobile" }] }),
@@ -27,26 +29,45 @@ function PromotionsPage() {
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [removeId, setRemoveId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const mode = useConnectionMode();
   useEffect(() => setItems(data.offers), [data.offers]);
   const filtered = category === "Todos" ? items : items.filter((o) => o.category === category);
 
   const add = async () => {
     if (!name.trim()) return;
-    const item = await hermesService.addPromotion({
-      name: name.trim(),
-      category: category === "Todos" ? "Outros" : category,
-      target: Number(target) || 0,
-    });
-    setItems((current) => [item, ...current]);
-    setName("");
-    setTarget("");
-    setShowForm(false);
+    setBusy(true);
+    setError("");
+    try {
+      const item = await hermesService.addPromotion({
+        name: name.trim(),
+        category: category === "Todos" ? "Outros" : category,
+        target: Number(target) || 0,
+      });
+      setItems((current) => [item, ...current]);
+      setName("");
+      setTarget("");
+      setShowForm(false);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível salvar a promoção.");
+    } finally {
+      setBusy(false);
+    }
   };
   const remove = async () => {
     if (!removeId) return;
-    await hermesService.removePromotion(removeId);
-    setItems((current) => current.filter((item) => item.id !== removeId));
-    setRemoveId(null);
+    setBusy(true);
+    setError("");
+    try {
+      await hermesService.removePromotion(removeId);
+      setItems((current) => current.filter((item) => item.id !== removeId));
+      setRemoveId(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível remover a promoção.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -55,9 +76,11 @@ function PromotionsPage() {
       <p className="mb-4 text-sm text-muted-foreground">
         Monitoramento inteligente de ofertas — nota do Hermes baseada em preço, loja e histórico.
       </p>
+      <OperationFeedback busy={busy} error={error} />
 
       <button
         onClick={() => setShowForm((value) => !value)}
+        disabled={busy || mode === "offline"}
         className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card/60 py-2.5 text-xs font-semibold"
       >
         <Plus className="h-4 w-4" /> Adicionar item monitorado
@@ -79,7 +102,8 @@ function PromotionsPage() {
           />
           <button
             onClick={() => void add()}
-            className="w-full rounded-xl gradient-primary py-2 text-xs font-semibold text-primary-foreground"
+            disabled={busy || mode === "offline"}
+            className="w-full rounded-xl gradient-primary py-2 text-xs font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
           >
             Salvar monitoramento
           </button>
@@ -145,6 +169,7 @@ function PromotionsPage() {
               </a>
               <button
                 onClick={() => setRemoveId(o.id)}
+                disabled={busy || mode === "offline"}
                 className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background/40 px-3 py-2 text-xs font-semibold hover:bg-background/70 active:scale-95"
               >
                 <Trash2 className="h-3.5 w-3.5" /> Remover

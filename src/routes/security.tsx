@@ -2,9 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
 import { useSecuritySettings } from "@/hooks/use-hermes-data";
 import { PauseCircle, ShieldCheck } from "lucide-react";
-import { useState } from "react";
-import { hermesService } from "@/services/hermes-service";
-import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
+import { securityPolicyPresentation } from "@/services/security-policy";
 
 export const Route = createFileRoute("/security")({
   head: () => ({ meta: [{ title: "Segurança — Hermes Mobile" }] }),
@@ -13,19 +11,6 @@ export const Route = createFileRoute("/security")({
 
 function SecurityPage() {
   const { data: securitySettings } = useSecuritySettings();
-  const [items, setItems] = useState(securitySettings);
-  const [paused, setPaused] = useState(false);
-  const [pending, setPending] = useState<number | null>(null);
-  const apply = () => {
-    if (pending === null) return;
-    const setting = items[pending];
-    const enabled = !setting.enabled;
-    setItems((current) =>
-      current.map((item, index) => (index === pending ? { ...item, enabled } : item)),
-    );
-    void hermesService.updateSecuritySetting(setting.id, enabled);
-    setPending(null);
-  };
 
   return (
     <MobileShell>
@@ -37,60 +22,45 @@ function SecurityPage() {
           <ShieldCheck className="h-5 w-5" />
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Suas preferências são aplicadas em toda ação do Hermes. Ele nunca envia, compra ou apaga
-          sem sua confirmação.
+          Políticas obrigatórias são aplicadas pela API e não podem ser desligadas pela interface.
+          Recursos ainda sem enforcement aparecem como “em preparação”.
         </p>
       </div>
 
       <ul className="mb-6 space-y-2">
-        {items.map((s, i) => (
-          <li
-            key={s.id}
-            className="glass-card flex items-center justify-between gap-3 rounded-2xl p-3.5"
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">{s.title}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{s.description}</p>
-            </div>
-            <button
-              role="switch"
-              aria-checked={s.enabled}
-              onClick={() => setPending(i)}
-              className={
-                "relative h-7 w-12 shrink-0 rounded-full border border-border transition-colors " +
-                (s.enabled ? "gradient-primary glow" : "bg-background/60")
-              }
+        {securitySettings.map((s) => {
+          const policy = securityPolicyPresentation(s);
+          return (
+            <li
+              key={s.id}
+              className="glass-card flex items-center justify-between gap-3 rounded-2xl p-3.5"
             >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">{s.title}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{s.description}</p>
+              </div>
               <span
                 className={
-                  "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all " +
-                  (s.enabled ? "left-[calc(100%-1.375rem)]" : "left-0.5")
+                  "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold " +
+                  (policy.active
+                    ? "bg-[color:var(--success)]/20 text-[color:var(--success)]"
+                    : "bg-muted text-muted-foreground")
                 }
-              />
-            </button>
-          </li>
-        ))}
+              >
+                {policy.label}
+              </span>
+            </li>
+          );
+        })}
       </ul>
 
       <button
-        onClick={() => setPaused((p) => !p)}
-        className={
-          "flex w-full items-center justify-center gap-2 rounded-3xl py-4 text-base font-semibold transition-colors " +
-          (paused
-            ? "bg-[color:var(--success)] text-[color:var(--success-foreground)]"
-            : "bg-destructive text-destructive-foreground")
-        }
+        disabled
+        className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-3xl border border-border bg-muted/50 py-4 text-base font-semibold text-muted-foreground"
       >
         <PauseCircle className="h-5 w-5" />
-        {paused ? "Retomar Hermes" : "Pausar Hermes"}
+        Pausar Hermes · em preparação
       </button>
-      <ConfirmActionDialog
-        open={pending !== null}
-        title="Alterar regra de segurança?"
-        description="Confirme a mudança. A nova preferência ficará registrada e auditada localmente."
-        onCancel={() => setPending(null)}
-        onConfirm={apply}
-      />
     </MobileShell>
   );
 }

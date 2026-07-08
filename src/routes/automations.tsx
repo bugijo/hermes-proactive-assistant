@@ -2,10 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
 import { useAutomations } from "@/hooks/use-hermes-data";
 import type { BatteryImpact } from "@/types/hermes";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Battery, Clock, ShieldCheck } from "lucide-react";
 import { hermesService } from "@/services/hermes-service";
 import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
+import { OperationFeedback } from "@/components/OperationFeedback";
+import { useConnectionMode } from "@/hooks/use-connection-mode";
 
 export const Route = createFileRoute("/automations")({
   head: () => ({ meta: [{ title: "Automações — Hermes Mobile" }] }),
@@ -24,13 +26,27 @@ function AutomationsPage() {
     Object.fromEntries(automations.map((a) => [a.id, a.enabled])),
   );
   const [pending, setPending] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const mode = useConnectionMode();
+  useEffect(() => {
+    setState(Object.fromEntries(automations.map((item) => [item.id, item.enabled])));
+  }, [automations]);
   const automation = automations.find((item) => item.id === pending);
-  const toggle = () => {
+  const toggle = async () => {
     if (!pending) return;
     const enabled = !state[pending];
-    setState((current) => ({ ...current, [pending]: enabled }));
-    void hermesService.updateAutomation(pending, enabled);
-    setPending(null);
+    setBusy(true);
+    setError("");
+    try {
+      await hermesService.updateAutomation(pending, enabled);
+      setState((current) => ({ ...current, [pending]: enabled }));
+      setPending(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível salvar a automação.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -39,6 +55,7 @@ function AutomationsPage() {
       <p className="mb-5 text-sm text-muted-foreground">
         Ative apenas o que você quer que o Hermes faça em segundo plano.
       </p>
+      <OperationFeedback busy={busy} error={error} />
 
       <ul className="space-y-3">
         {automations.map((a) => {
@@ -50,7 +67,11 @@ function AutomationsPage() {
                   <p className="text-sm font-semibold">{a.name}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{a.description}</p>
                 </div>
-                <Toggle on={on} onChange={() => setPending(a.id)} />
+                <Toggle
+                  on={on}
+                  onChange={() => setPending(a.id)}
+                  disabled={busy || mode === "offline"}
+                />
               </div>
 
               <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
@@ -82,22 +103,31 @@ function AutomationsPage() {
       <ConfirmActionDialog
         open={Boolean(pending)}
         title={`${state[pending ?? ""] ? "Desativar" : "Ativar"} automação?`}
-        description={`${automation?.name ?? "Esta automação"} terá apenas seu estado local alterado; nenhum conector externo será executado.`}
+        description={`${automation?.name ?? "Esta automação"} terá seu estado salvo na API local; nenhum conector externo será executado.`}
         onCancel={() => setPending(null)}
-        onConfirm={toggle}
+        onConfirm={() => void toggle()}
       />
     </MobileShell>
   );
 }
 
-function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
+function Toggle({
+  on,
+  onChange,
+  disabled,
+}: {
+  on: boolean;
+  onChange: () => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       role="switch"
       aria-checked={on}
       onClick={onChange}
+      disabled={disabled}
       className={
-        "relative h-7 w-12 shrink-0 rounded-full border border-border transition-colors " +
+        "relative h-7 w-12 shrink-0 rounded-full border border-border transition-colors disabled:cursor-not-allowed disabled:opacity-50 " +
         (on ? "gradient-primary glow" : "bg-background/60")
       }
     >

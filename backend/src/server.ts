@@ -2,8 +2,10 @@ import { handleHttpRoute } from "./routes/http-routes";
 import { jsonHeaders, errorJson, ApiError } from "./utils/http";
 import { bearerToken } from "./middleware/auth";
 import { authService } from "./services/auth-service";
+import { resolveBindHost } from "./config";
 
 const port = Number(process.env.HERMES_API_PORT ?? 8787);
+const hostname = resolveBindHost();
 const sockets = new Set<ServerWebSocket>();
 type ServerWebSocket = Parameters<
   NonNullable<Parameters<typeof Bun.serve>[0]["websocket"]>["open"]
@@ -16,6 +18,7 @@ function publish(topic: string, payload: unknown) {
 
 const server = Bun.serve<{ authenticated?: boolean }>({
   port,
+  hostname,
   async fetch(request, server) {
     if (request.method === "OPTIONS") return new Response(null, { headers: jsonHeaders });
 
@@ -32,7 +35,9 @@ const server = Bun.serve<{ authenticated?: boolean }>({
     }
 
     try {
-      const response = await handleHttpRoute(request, publish);
+      const response = await handleHttpRoute(request, publish, {
+        clientIp: server.requestIP(request)?.address ?? "unknown",
+      });
       return response ?? errorJson(new ApiError(404, "NOT_FOUND", "Endpoint não encontrado."));
     } catch (error) {
       if (!(error instanceof ApiError)) console.error(error);
@@ -66,4 +71,4 @@ const server = Bun.serve<{ authenticated?: boolean }>({
   },
 });
 
-console.log(`Hermes Mobile API running at http://localhost:${server.port}`);
+console.log(`Hermes Mobile API running at http://${hostname}:${server.port}`);

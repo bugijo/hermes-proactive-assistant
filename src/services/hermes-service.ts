@@ -85,6 +85,12 @@ class ApiResponseError extends Error {
   }
 }
 
+export class HermesOfflineError extends Error {
+  constructor() {
+    super("A API local está offline. A alteração não foi salva.");
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!apiBaseUrl) throw new TypeError("API not configured");
   const token = await getToken();
@@ -126,21 +132,16 @@ async function withFallback<T>(path: string, fallback: () => Promise<T>): Promis
   }
 }
 
-const mutate = <T>(method: string, path: string, body?: unknown) =>
-  request<T>(path, { method, body: body === undefined ? undefined : JSON.stringify(body) });
-
-async function mutateWithFallback<T>(
-  method: string,
-  path: string,
-  body: unknown,
-  fallback: () => Promise<T>,
-) {
+async function mutate<T>(method: string, path: string, body?: unknown) {
   try {
-    return await mutate<T>(method, path, body);
+    return await request<T>(path, {
+      method,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
   } catch (error) {
     if (error instanceof ApiResponseError) throw error;
     notifyMode("offline");
-    return fallback();
+    throw new HermesOfflineError();
   }
 }
 
@@ -163,7 +164,6 @@ export interface HermesService {
   updateSuggestion(id: string, state: "approved" | "ignored" | "later"): Promise<Suggestion>;
   updateAutomation(id: string, enabled: boolean): Promise<Automation>;
   updatePermission(id: string, granted: boolean): Promise<DevicePermission>;
-  updateSecuritySetting(id: string, enabled: boolean): Promise<SecuritySetting>;
   addPromotion(input: Pick<Offer, "name" | "category" | "target"> & Partial<Offer>): Promise<Offer>;
   removePromotion(id: string): Promise<void>;
   createPairingToken(): Promise<PairingToken>;
@@ -215,94 +215,42 @@ export const hermesService: HermesService = {
   getPcStatus: () => withFallback("/api/pc", () => delay(hermesPc)),
   getSecuritySettings: () => withFallback("/api/security-settings", () => delay(securitySettings)),
   getInitialChat: () => withFallback("/api/chat", () => delay(initialChat)),
-  sendChatMessage: (text) =>
-    apiBaseUrl
-      ? mutateWithFallback("POST", "/api/chat", { text, confirmationStatus: "draft" }, () =>
-          delay({
-            id: `h-${Date.now()}`,
-            role: "hermes",
-            text: "Modo demo: salvei apenas nesta tela; ações sensíveis continuam bloqueadas.",
-          }),
-        )
-      : delay({
-          id: `h-${Date.now()}`,
-          role: "hermes",
-          text: "Modo demo: salvei apenas nesta tela; ações sensíveis continuam bloqueadas.",
-        }),
+  sendChatMessage: (text) => mutate("POST", "/api/chat", { text, confirmationStatus: "draft" }),
   getDashboardMetrics: () => withFallback("/api/dashboard", () => delay(systemMetrics)),
   getTasks: () => withFallback("/api/tasks", () => delay(tasks)),
   getNotifications: () => withFallback("/api/notifications", () => delay(notifications)),
   getDevices: () => withFallback("/api/devices", () => delay(authorizedDevices)),
   updateSuggestion: (id, state) =>
-    apiBaseUrl
-      ? mutateWithFallback(
-          "PATCH",
-          `/api/suggestions/${id}`,
-          { state, confirmationStatus: "confirmed" },
-          () => delay({ ...suggestions.find((x) => x.id === id)!, state }),
-        )
-      : delay({ ...suggestions.find((x) => x.id === id)!, state }),
+    mutate("PATCH", `/api/suggestions/${id}`, {
+      state,
+      confirmationStatus: "confirmed",
+    }),
   updateAutomation: (id, enabled) =>
-    apiBaseUrl
-      ? mutateWithFallback(
-          "PATCH",
-          `/api/automations/${id}`,
-          { enabled, confirmationStatus: "confirmed" },
-          () => delay({ ...automations.find((x) => x.id === id)!, enabled }),
-        )
-      : delay({ ...automations.find((x) => x.id === id)!, enabled }),
+    mutate("PATCH", `/api/automations/${id}`, {
+      enabled,
+      confirmationStatus: "confirmed",
+    }),
   updatePermission: (id, granted) =>
-    apiBaseUrl
-      ? mutateWithFallback(
-          "PATCH",
-          `/api/permissions/${id}`,
-          { granted, confirmationStatus: "confirmed" },
-          () => delay({ ...devicePermissions.find((x) => x.id === id)!, granted }),
-        )
-      : delay({ ...devicePermissions.find((x) => x.id === id)!, granted }),
-  updateSecuritySetting: (id, enabled) =>
-    apiBaseUrl
-      ? mutateWithFallback(
-          "PATCH",
-          `/api/security-settings/${id}`,
-          { enabled, confirmationStatus: "confirmed" },
-          () => delay({ ...securitySettings.find((x) => x.id === id)!, enabled }),
-        )
-      : delay({ ...securitySettings.find((x) => x.id === id)!, enabled }),
+    mutate("PATCH", `/api/permissions/${id}`, {
+      granted,
+      confirmationStatus: "confirmed",
+    }),
   addPromotion: (input) =>
-    apiBaseUrl
-      ? mutateWithFallback(
-          "POST",
-          "/api/promotions",
-          { price: 0, score: 0, status: "Esperar", url: "#", ...input },
-          () =>
-            delay({
-              id: `mock-${Date.now()}`,
-              price: 0,
-              score: 0,
-              status: "Esperar",
-              url: "#",
-              ...input,
-            } as Offer),
-        )
-      : delay({
-          id: `mock-${Date.now()}`,
-          price: 0,
-          score: 0,
-          status: "Esperar",
-          url: "#",
-          ...input,
-        } as Offer),
+    mutate("POST", "/api/promotions", {
+      price: 0,
+      score: 0,
+      status: "Esperar",
+      url: "#",
+      ...input,
+    }),
   removePromotion: async (id) => {
-    if (apiBaseUrl)
-      await mutateWithFallback("DELETE", `/api/promotions/${id}`, undefined, () =>
-        Promise.resolve(undefined),
-      );
+    await mutate("DELETE", `/api/promotions/${id}`, { confirmationStatus: "confirmed" });
   },
   createPairingToken: () => mutate("POST", "/api/pairing-tokens", {}),
-  approveDevice: (id) => mutate("POST", `/api/devices/${id}/approve`),
+  approveDevice: (id) =>
+    mutate("POST", `/api/devices/${id}/approve`, { confirmationStatus: "confirmed" }),
   revokeDevice: async (id) => {
-    await mutate("DELETE", `/api/devices/${id}`);
+    await mutate("DELETE", `/api/devices/${id}`, { confirmationStatus: "confirmed" });
   },
   getNotificationPreferences: () =>
     withFallback("/api/preferences/notifications", () =>
@@ -316,16 +264,7 @@ export const hermesService: HermesService = {
         notificationsEnabled: false,
       }),
     ),
-  updateNotificationPreferences: (input) =>
-    mutateWithFallback("PUT", "/api/preferences/notifications", input, () =>
-      Promise.resolve(input),
-    ),
-  createNotification: (input) =>
-    mutateWithFallback("POST", "/api/notifications", input, () =>
-      Promise.resolve({ id: `offline-${Date.now()}` }),
-    ),
-  recordNativeAction: (input) =>
-    mutateWithFallback("POST", "/api/native-actions", input, () =>
-      Promise.resolve({ id: `offline-${Date.now()}` }),
-    ),
+  updateNotificationPreferences: (input) => mutate("PUT", "/api/preferences/notifications", input),
+  createNotification: (input) => mutate("POST", "/api/notifications", input),
+  recordNativeAction: (input) => mutate("POST", "/api/native-actions", input),
 };

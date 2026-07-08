@@ -3,6 +3,31 @@ import { db } from "../database";
 import { ApiError } from "../utils/http";
 
 type ConfirmationStatus = "draft" | "pending_confirmation" | "confirmed";
+type ActionSensitivity = "normal" | "high";
+type SuggestionInput = {
+  type: "promo" | "reminder" | "message" | "task";
+  title: string;
+  description: string;
+  time?: string;
+};
+type PromotionInput = {
+  category: string;
+  name: string;
+  price?: number;
+  target?: number;
+  score?: number;
+  status?: "Comprar agora" | "Esperar" | "Ruim" | "Suspeita";
+  url?: string;
+};
+type AutomationInput = {
+  name: string;
+  description: string;
+  enabled?: boolean;
+  frequency?: string;
+  impact?: "baixo" | "médio" | "alto";
+  permissions?: string[];
+};
+const enforcedSecuritySettings = new Set(["sec1", "sec2", "sec3", "sec6"]);
 const json = (value: unknown) => JSON.stringify(value);
 const parse = <T>(value: string | null | undefined, fallback: T): T =>
   value ? (JSON.parse(value) as T) : fallback;
@@ -25,20 +50,23 @@ export const domainRepository = {
       )
       .all();
   },
-  createSuggestion(input: Record<string, unknown>) {
-    if (!input.title || !input.description || !input.type)
-      throw new ApiError(400, "INVALID_SUGGESTION", "Tipo, título e descrição são obrigatórios.");
+  createSuggestion(input: SuggestionInput) {
     const newId = id("suggestion");
     db.prepare(
       "INSERT INTO suggestions (id,type,title,description,time,state,confirmation_status) VALUES (?,?,?,?,?,'pending','draft')",
     ).run(newId, input.type, input.title, input.description, input.time ?? "agora");
     return this.suggestions().find((x: any) => x.id === newId);
   },
-  updateSuggestion(itemId: string, input: Record<string, unknown>) {
-    const state = String(input.state ?? "pending");
-    const confirmation = String(
-      input.confirmationStatus ?? (state === "approved" ? "pending_confirmation" : "confirmed"),
-    );
+  updateSuggestion(
+    itemId: string,
+    input: {
+      state?: "pending" | "approved" | "ignored" | "later";
+      confirmationStatus?: ConfirmationStatus;
+    },
+  ) {
+    const state = input.state ?? "pending";
+    const confirmation =
+      input.confirmationStatus ?? (state === "approved" ? "pending_confirmation" : "confirmed");
     const result = db
       .prepare(
         "UPDATE suggestions SET state=?, confirmation_status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
@@ -58,9 +86,7 @@ export const domainRepository = {
       )
       .all();
   },
-  createPromotion(input: Record<string, unknown>) {
-    if (!input.name || !input.category)
-      throw new ApiError(400, "INVALID_PROMOTION", "Nome e categoria são obrigatórios.");
+  createPromotion(input: PromotionInput) {
     const newId = id("promotion");
     db.prepare(
       "INSERT INTO promotions (id,category,name,price,target,score,status,url) VALUES (?,?,?,?,?,?,?,?)",
@@ -68,15 +94,18 @@ export const domainRepository = {
       newId,
       input.category,
       input.name,
-      Number(input.price ?? 0),
-      Number(input.target ?? 0),
-      Number(input.score ?? 0),
+      input.price ?? 0,
+      input.target ?? 0,
+      input.score ?? 0,
       input.status ?? "Esperar",
       input.url ?? "#",
     );
     return this.promotions().find((x: any) => x.id === newId);
   },
-  updatePromotion(itemId: string, input: Record<string, unknown>) {
+  updatePromotion(
+    itemId: string,
+    input: Partial<PromotionInput> & { confirmationStatus?: ConfirmationStatus },
+  ) {
     const current = this.promotions().find((x: any) => x.id === itemId) as any;
     if (!current) throw new ApiError(404, "NOT_FOUND", "Promoção não encontrada.");
     db.prepare(
@@ -107,9 +136,7 @@ export const domainRepository = {
         .all() as any[]
     ).map((x) => ({ ...x, enabled: Boolean(x.enabled), permissions: parse(x.permissions, []) }));
   },
-  createAutomation(input: Record<string, unknown>) {
-    if (!input.name || !input.description)
-      throw new ApiError(400, "INVALID_AUTOMATION", "Nome e descrição são obrigatórios.");
+  createAutomation(input: AutomationInput) {
     const newId = id("automation");
     db.prepare(
       "INSERT INTO automations (id,name,description,enabled,frequency,impact,permissions) VALUES (?,?,?,?,?,?,?)",
@@ -124,7 +151,10 @@ export const domainRepository = {
     );
     return this.automations().find((x: any) => x.id === newId);
   },
-  updateAutomation(itemId: string, input: Record<string, unknown>) {
+  updateAutomation(
+    itemId: string,
+    input: Partial<AutomationInput> & { confirmationStatus?: ConfirmationStatus },
+  ) {
     const current = this.automations().find((x: any) => x.id === itemId) as any;
     if (!current) throw new ApiError(404, "NOT_FOUND", "Automação não encontrada.");
     db.prepare(
@@ -154,7 +184,7 @@ export const domainRepository = {
         .all() as any[]
     ).map((x) => ({ ...x, granted: Boolean(x.granted) }));
   },
-  createPermission(input: Record<string, unknown>) {
+  createPermission(input: { title: string; description?: string; granted?: boolean }) {
     const newId = id("permission");
     db.prepare("INSERT INTO permissions (id,title,description,granted) VALUES (?,?,?,?)").run(
       newId,
@@ -164,7 +194,10 @@ export const domainRepository = {
     );
     return this.permissions().find((x: any) => x.id === newId);
   },
-  updatePermission(itemId: string, input: Record<string, unknown>) {
+  updatePermission(
+    itemId: string,
+    input: { granted?: boolean; confirmationStatus?: ConfirmationStatus },
+  ) {
     const current = this.permissions().find((x: any) => x.id === itemId) as any;
     if (!current) throw new ApiError(404, "NOT_FOUND", "Permissão não encontrada.");
     db.prepare(
@@ -187,7 +220,15 @@ export const domainRepository = {
           "SELECT id,title,description,enabled,confirmation_status AS confirmationStatus FROM security_settings ORDER BY id",
         )
         .all() as any[]
-    ).map((x) => ({ ...x, enabled: Boolean(x.enabled) }));
+    ).map((x) => {
+      const enforced = enforcedSecuritySettings.has(x.id);
+      return {
+        ...x,
+        enabled: enforced,
+        enforced,
+        editable: false,
+      };
+    });
   },
   createSecuritySetting(input: Record<string, unknown>) {
     const newId = id("security");
@@ -234,6 +275,11 @@ export const domainRepository = {
     confirmationStatus?: ConfirmationStatus;
     card?: unknown;
   }) {
+    const sessionId = input.sessionId ?? "default";
+    db.prepare("INSERT OR IGNORE INTO chat_sessions (id,title) VALUES (?,?)").run(
+      sessionId,
+      sessionId === "default" ? "Sessão inicial" : "Conversa local",
+    );
     const newId = id(input.role === "user" ? "user" : "hermes");
     db.prepare(
       "INSERT INTO chat_messages (id,role,text,card,session_id,confirmation_status) VALUES (?,?,?,?,?,?)",
@@ -242,7 +288,7 @@ export const domainRepository = {
       input.role,
       input.text,
       input.card ? json(input.card) : null,
-      input.sessionId ?? "default",
+      sessionId,
       input.confirmationStatus ?? "draft",
     );
     return this.chatMessages().find((x: any) => x.id === newId);
@@ -266,7 +312,7 @@ export const domainRepository = {
     action: string;
     entityType?: string;
     entityId?: string;
-    sensitivity?: string;
+    sensitivity?: ActionSensitivity;
     confirmationStatus?: ConfirmationStatus;
     details?: unknown;
   }) {

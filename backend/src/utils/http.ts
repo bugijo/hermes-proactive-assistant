@@ -3,6 +3,8 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
+    public details?: unknown,
+    public retryAfter?: number,
   ) {
     super(message);
   }
@@ -22,8 +24,23 @@ export const errorJson = (error: ApiError | Error) => {
   const apiError =
     error instanceof ApiError ? error : new ApiError(500, "INTERNAL_ERROR", "Erro interno da API.");
   return new Response(
-    JSON.stringify({ error: { code: apiError.code, message: apiError.message } }),
-    { status: apiError.status, headers: jsonHeaders },
+    JSON.stringify({
+      error: {
+        code: apiError.code,
+        message: apiError.message,
+        ...(apiError.details === undefined ? {} : { details: apiError.details }),
+        ...(apiError.retryAfter === undefined ? {} : { retryAfter: apiError.retryAfter }),
+      },
+    }),
+    {
+      status: apiError.status,
+      headers: {
+        ...jsonHeaders,
+        ...(apiError.retryAfter === undefined
+          ? {}
+          : { "Retry-After": String(apiError.retryAfter) }),
+      },
+    },
   );
 };
 

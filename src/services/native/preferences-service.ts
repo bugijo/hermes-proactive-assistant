@@ -35,8 +35,8 @@ export const nativePreferencesService = {
     }
   },
   async set(value: NativePreferences) {
-    await platformService.preferenceSet(KEY, JSON.stringify(value));
     await hermesService.updateNotificationPreferences(value);
+    await platformService.preferenceSet(KEY, JSON.stringify(value));
   },
 };
 
