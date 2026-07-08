@@ -32,6 +32,9 @@ bun run dev:all
 
 Abra o endereço mostrado pelo Vite (normalmente `http://localhost:8080`). No primeiro acesso, crie o usuário local; nos próximos, faça login. O backend usa `http://localhost:8787` e grava o banco ignorado pelo Git em `backend/data/hermes.sqlite`.
 
+Por padrão, a API escuta somente em `127.0.0.1`. Não use `HERMES_BIND_HOST=0.0.0.0`
+sem compreender que isso expõe a API HTTP à rede local.
+
 Para rodar separadamente:
 
 ```bash
@@ -70,11 +73,16 @@ Consulte [.env.example](.env.example). Não versione `.env`, bancos locais, toke
 | ----------------------- | -------------------------------------------- |
 | `VITE_HERMES_API_URL`   | URL da API usada pelo frontend.              |
 | `HERMES_API_PORT`       | Porta da API, padrão `8787`.                 |
+| `HERMES_BIND_HOST`      | Bind da API, padrão seguro `127.0.0.1`.      |
 | `HERMES_ALLOWED_ORIGIN` | Origem CORS permitida, padrão local.         |
 | `HERMES_DB_PATH`        | Caminho do SQLite.                           |
 | `HERMES_SESSION_HOURS`  | Duração da sessão local.                     |
 | `HERMES_SEED`           | `true` para dados demo em desenvolvimento.   |
 | `NODE_ENV`              | Em `production`, o seed é sempre desativado. |
+
+Os limites locais de autenticação, pareamento e API podem ser ajustados pelas variáveis
+`HERMES_*_RATE_LIMIT_MAX` do `.env.example`. Respostas bloqueadas usam HTTP 429 e informam
+`retryAfter`.
 
 ## Estrutura
 

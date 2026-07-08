@@ -2,6 +2,11 @@
 
 Base padrão: `http://localhost:8787`.
 
+A API escuta somente em `127.0.0.1` por padrão. `HERMES_BIND_HOST=0.0.0.0` é uma opção
+explícita para desenvolvimento em LAN e expõe tráfego HTTP sem TLS; não use em rede não confiável.
+Autenticação e pareamento possuem rate limiting local e retornam `429 RATE_LIMITED` com
+`retryAfter` e header `Retry-After`.
+
 ## Respostas
 
 Sucesso:
@@ -92,6 +97,16 @@ Valores de `confirmationStatus`:
 - `draft`: salvo, não autorizado para execução.
 - `pending_confirmation`: aguarda confirmação explícita.
 - `confirmed`: usuário confirmou o registro; ainda não implica execução externa nesta fase.
+
+Operações `DELETE` exigem corpo JSON `{ "confirmationStatus": "confirmed" }`; sem essa
+confirmação, a API responde 400 e não altera o SQLite.
+
+`POST /api/action-logs` não aceita nomes, severidades ou estados forenses escolhidos pelo cliente.
+Ele registra somente notas informativas no formato `{ "message": "...", "context": {} }`, sempre
+como `client.note.created`. Eventos operacionais confiáveis continuam sendo emitidos pelo servidor.
+
+As configurações retornadas por `/api/security-settings` informam `enforced` e `editable`.
+Políticas obrigatórias são somente leitura; capacidades sem enforcement aparecem como preparação.
 
 ## WebSocket
 
