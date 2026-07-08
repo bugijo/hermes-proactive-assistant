@@ -359,6 +359,15 @@ describe("API local Hermes Mobile", () => {
   });
 
   test("políticas de segurança são somente leitura", async () => {
+    const policies = await api("/api/security-settings");
+    expect(policies.response.status).toBe(200);
+    expect(
+      policies.body.data.some(
+        (item: { id: string; enabled: boolean; enforced: boolean; editable: boolean }) =>
+          item.id === "sec1" && item.enabled && item.enforced && !item.editable,
+      ),
+    ).toBe(true);
+
     const updated = await api("/api/security-settings/sec1", {
       method: "PATCH",
       body: JSON.stringify({ enabled: false, confirmationStatus: "confirmed" }),
