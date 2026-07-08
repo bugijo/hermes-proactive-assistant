@@ -7,6 +7,8 @@ import { requestNativeAction } from "@/services/native/native-actions";
 import type { NativePreferences } from "@/services/native/preferences-service";
 import { Battery, Bell, Radio, Share2, Smartphone, Wifi } from "lucide-react";
 import { useState } from "react";
+import { OperationFeedback } from "@/components/OperationFeedback";
+import { useConnectionMode } from "@/hooks/use-connection-mode";
 
 export const Route = createFileRoute("/native")({
   head: () => ({ meta: [{ title: "Dispositivo e notificações — Hermes Mobile" }] }),
@@ -38,13 +40,28 @@ const toggles: Array<{ key: keyof NativePreferences; title: string; description:
 
 function NativeSettingsPage() {
   const { battery, network, device, native } = usePlatformStatus();
-  const { preferences, update } = useNativePreferences();
+  const { preferences, update, saving, error } = useNativePreferences();
+  const mode = useConnectionMode();
   const [pending, setPending] = useState<keyof NativePreferences | null>(null);
   const [openApp, setOpenApp] = useState(false);
-  const confirmPreference = () => {
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const confirmPreference = async () => {
     if (!pending) return;
-    update(pending, !preferences[pending] as never);
-    setPending(null);
+    if (await update(pending, !preferences[pending] as never)) setPending(null);
+  };
+  const runAction = async (action: () => Promise<unknown>) => {
+    setActionBusy(true);
+    setActionError("");
+    try {
+      await action();
+      return true;
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "A ação não pôde ser concluída.");
+      return false;
+    } finally {
+      setActionBusy(false);
+    }
   };
 
   return (
@@ -53,6 +70,8 @@ function NativeSettingsPage() {
       <p className="mb-4 text-sm text-muted-foreground">
         Recursos leves, sem automação contínua em segundo plano.
       </p>
+      <OperationFeedback busy={saving} error={error} />
+      <OperationFeedback busy={actionBusy} error={actionError} />
 
       <section className="glass-card mb-4 grid grid-cols-2 gap-3 rounded-3xl p-4 text-xs">
         <Status
@@ -105,7 +124,8 @@ function NativeSettingsPage() {
                 role="switch"
                 aria-checked={enabled}
                 onClick={() => setPending(item.key)}
-                className={`relative h-7 w-12 shrink-0 rounded-full border border-border ${enabled ? "gradient-primary glow" : "bg-background/60"}`}
+                disabled={saving || mode === "offline"}
+                className={`relative h-7 w-12 shrink-0 rounded-full border border-border disabled:cursor-not-allowed disabled:opacity-50 ${enabled ? "gradient-primary glow" : "bg-background/60"}`}
               >
                 <span
                   className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${enabled ? "left-[calc(100%-1.375rem)]" : "left-0.5"}`}
@@ -120,8 +140,9 @@ function NativeSettingsPage() {
         <label className="text-xs font-semibold">Frequência de sincronização</label>
         <select
           value={preferences.syncFrequency}
+          disabled={saving || mode === "offline"}
           onChange={(event) =>
-            update("syncFrequency", event.target.value as NativePreferences["syncFrequency"])
+            void update("syncFrequency", event.target.value as NativePreferences["syncFrequency"])
           }
           className="mt-2 w-full rounded-xl border border-border bg-background/60 px-3 py-2 text-sm"
         >
@@ -137,7 +158,8 @@ function NativeSettingsPage() {
             <input
               type="time"
               value={preferences.quietStart}
-              onChange={(event) => update("quietStart", event.target.value)}
+              disabled={saving || mode === "offline"}
+              onChange={(event) => void update("quietStart", event.target.value)}
               className="mt-1 w-full rounded-xl border border-border bg-background/60 px-2 py-2 text-sm"
             />
           </label>
@@ -146,7 +168,8 @@ function NativeSettingsPage() {
             <input
               type="time"
               value={preferences.quietEnd}
-              onChange={(event) => update("quietEnd", event.target.value)}
+              disabled={saving || mode === "offline"}
+              onChange={(event) => void update("quietEnd", event.target.value)}
               className="mt-1 w-full rounded-xl border border-border bg-background/60 px-2 py-2 text-sm"
             />
           </label>
@@ -163,22 +186,28 @@ function NativeSettingsPage() {
 
       <div className="grid grid-cols-2 gap-2">
         <button
+          disabled={actionBusy || mode === "offline"}
           onClick={() =>
-            void requestNativeAction({
-              kind: "local_notification",
-              value: "Notificação local de teste do Hermes.",
-            })
+            void runAction(() =>
+              requestNativeAction({
+                kind: "local_notification",
+                value: "Notificação local de teste do Hermes.",
+              }),
+            )
           }
           className="flex items-center justify-center gap-2 rounded-2xl gradient-primary px-3 py-3 text-xs font-semibold text-primary-foreground"
         >
           <Bell className="h-4 w-4" /> Testar aviso
         </button>
         <button
+          disabled={actionBusy || mode === "offline"}
           onClick={() =>
-            void requestNativeAction({
-              kind: "share",
-              value: "Hermes Mobile — assistente local com confirmação.",
-            })
+            void runAction(() =>
+              requestNativeAction({
+                kind: "share",
+                value: "Hermes Mobile — assistente local com confirmação.",
+              }),
+            )
           }
           className="flex items-center justify-center gap-2 rounded-2xl border border-border bg-card/60 px-3 py-3 text-xs font-semibold"
         >
@@ -187,6 +216,7 @@ function NativeSettingsPage() {
       </div>
       <button
         onClick={() => setOpenApp(true)}
+        disabled={actionBusy || mode === "offline"}
         className="mt-2 w-full rounded-2xl border border-border py-2.5 text-xs"
       >
         Abrir configurações do Android
@@ -197,7 +227,7 @@ function NativeSettingsPage() {
         title="Alterar preferência?"
         description="A mudança será salva localmente e aplicada sem iniciar loops em segundo plano."
         onCancel={() => setPending(null)}
-        onConfirm={confirmPreference}
+        onConfirm={() => void confirmPreference()}
       />
       <ConfirmActionDialog
         open={openApp}
@@ -205,11 +235,14 @@ function NativeSettingsPage() {
         description="Confirme para abrir as configurações do Android. Nenhum toque ou comando será executado depois disso."
         onCancel={() => setOpenApp(false)}
         onConfirm={() => {
-          setOpenApp(false);
-          void requestNativeAction({
-            kind: "open_app",
-            value: "android.settings.SETTINGS",
-            confirmed: true,
+          void runAction(() =>
+            requestNativeAction({
+              kind: "open_app",
+              value: "android.settings.SETTINGS",
+              confirmed: true,
+            }),
+          ).then((ok) => {
+            if (ok) setOpenApp(false);
           });
         }}
       />

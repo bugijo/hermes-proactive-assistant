@@ -2,9 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
 import { useDevicePermissions } from "@/hooks/use-hermes-data";
 import { ShieldCheck, Check, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { hermesService } from "@/services/hermes-service";
 import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
+import { OperationFeedback } from "@/components/OperationFeedback";
+import { useConnectionMode } from "@/hooks/use-connection-mode";
 
 export const Route = createFileRoute("/device")({
   head: () => ({ meta: [{ title: "Controle do celular — Hermes Mobile" }] }),
@@ -15,15 +17,27 @@ function DevicePage() {
   const { data: devicePermissions } = useDevicePermissions();
   const [perms, setPerms] = useState(devicePermissions);
   const [pending, setPending] = useState<number | null>(null);
-  const apply = () => {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const mode = useConnectionMode();
+  useEffect(() => setPerms(devicePermissions), [devicePermissions]);
+  const apply = async () => {
     if (pending === null) return;
     const permission = perms[pending];
     const granted = !permission.granted;
-    setPerms((current) =>
-      current.map((item, index) => (index === pending ? { ...item, granted } : item)),
-    );
-    void hermesService.updatePermission(permission.id, granted);
-    setPending(null);
+    setBusy(true);
+    setError("");
+    try {
+      await hermesService.updatePermission(permission.id, granted);
+      setPerms((current) =>
+        current.map((item, index) => (index === pending ? { ...item, granted } : item)),
+      );
+      setPending(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível salvar a permissão.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -32,6 +46,7 @@ function DevicePage() {
       <p className="mb-4 text-sm text-muted-foreground">
         Permissões que o Hermes usará no seu Android. Você controla tudo.
       </p>
+      <OperationFeedback busy={busy} error={error} />
 
       <div className="glass-card mb-5 rounded-3xl p-4">
         <div className="flex items-start gap-3">
@@ -55,8 +70,9 @@ function DevicePage() {
               </div>
               <button
                 onClick={() => setPending(i)}
+                disabled={busy || mode === "offline"}
                 className={
-                  "flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors " +
+                  "flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 " +
                   (p.granted
                     ? "bg-[color:var(--success)]/20 text-[color:var(--success)]"
                     : "bg-muted text-muted-foreground")
@@ -74,7 +90,7 @@ function DevicePage() {
         title="Alterar permissão?"
         description="Esta fase registra apenas sua preferência. Nenhuma permissão Android real será concedida nem usada."
         onCancel={() => setPending(null)}
-        onConfirm={apply}
+        onConfirm={() => void apply()}
       />
     </MobileShell>
   );

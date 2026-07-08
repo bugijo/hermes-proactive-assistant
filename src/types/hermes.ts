@@ -71,6 +71,8 @@ export interface SecuritySetting {
   title: string;
   description: string;
   enabled: boolean;
+  enforced?: boolean;
+  editable?: boolean;
 }
 export interface ChatMessage {
   id: string;

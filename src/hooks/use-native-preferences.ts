@@ -8,18 +8,28 @@ import {
 export function useNativePreferences() {
   const [preferences, setPreferences] = useState<NativePreferences>(defaultNativePreferences);
   const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   useEffect(() => {
     void nativePreferencesService.get().then((value) => {
       setPreferences(value);
       setLoaded(true);
     });
   }, []);
-  const update = <K extends keyof NativePreferences>(key: K, value: NativePreferences[K]) => {
-    setPreferences((current) => {
-      const next = { ...current, [key]: value };
-      void nativePreferencesService.set(next);
-      return next;
-    });
+  const update = async <K extends keyof NativePreferences>(key: K, value: NativePreferences[K]) => {
+    const next = { ...preferences, [key]: value };
+    setSaving(true);
+    setError("");
+    try {
+      await nativePreferencesService.set(next);
+      setPreferences(next);
+      return true;
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível salvar a preferência.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
   };
-  return { preferences, update, loaded };
+  return { preferences, update, loaded, saving, error };
 }
