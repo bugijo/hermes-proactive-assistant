@@ -6,7 +6,9 @@ import { taskRepository } from "../repositories/task-repository";
 import { nativeRepository } from "../repositories/native-repository";
 import { authService } from "../services/auth-service";
 import { deviceService } from "../services/device-service";
-import { ApiError, json, readJson } from "../utils/http";
+import { ApiError, json } from "../utils/http";
+import { enforceRateLimit } from "../middleware/rate-limit";
+import { schemas, validatedJson } from "../utils/validation";
 
 const resourceId = (path: string, resource: string) => {
   const match = path.match(new RegExp(`^/api/${resource}/([^/]+)$`));
@@ -55,19 +57,37 @@ function snapshot(user: { name: string }) {
 export async function handleHttpRoute(
   request: Request,
   publish: (topic: string, payload: unknown) => void,
+  context: { clientIp: string } = { clientIp: "local" },
 ) {
   const path = new URL(request.url).pathname.replace(/\/$/, "") || "/";
   const method = request.method;
+  enforceRateLimit("general", context.clientIp);
 
   if (method === "GET" && path === "/health")
     return json({ ok: true, service: "hermes-mobile-api" });
   if (method === "GET" && path === "/api/auth/status") return json(authService.status());
-  if (method === "POST" && path === "/api/auth/register")
-    return json(await authService.registerFirstUser(await readJson(request)), { status: 201 });
-  if (method === "POST" && path === "/api/auth/login")
-    return json(await authService.login(await readJson(request)));
-  if (method === "POST" && path === "/api/pairing/claim")
-    return json(await deviceService.claimPairingToken(await readJson(request)), { status: 201 });
+  if (method === "POST" && path === "/api/auth/register") {
+    enforceRateLimit("register", context.clientIp);
+    return json(
+      await authService.registerFirstUser(await validatedJson(request, schemas.register)),
+      {
+        status: 201,
+      },
+    );
+  }
+  if (method === "POST" && path === "/api/auth/login") {
+    enforceRateLimit("login", context.clientIp);
+    return json(await authService.login(await validatedJson(request, schemas.login)));
+  }
+  if (method === "POST" && path === "/api/pairing/claim") {
+    enforceRateLimit("pairingClaim", context.clientIp);
+    return json(
+      await deviceService.claimPairingToken(await validatedJson(request, schemas.pairingClaim)),
+      {
+        status: 201,
+      },
+    );
+  }
 
   const auth = await requireAuth(request);
   const audit = (
@@ -97,14 +117,16 @@ export async function handleHttpRoute(
   if (path === "/api/suggestions") {
     if (method === "GET") return json(domainRepository.suggestions());
     if (method === "POST") {
-      const item = domainRepository.createSuggestion(await readJson(request));
+      const item = domainRepository.createSuggestion(
+        await validatedJson(request, schemas.suggestionCreate),
+      );
       audit("suggestion.created", "suggestions", item.id, "draft");
       return json(item, { status: 201 });
     }
   }
   const suggestionId = resourceId(path, "suggestions");
   if (suggestionId && (method === "PATCH" || method === "PUT")) {
-    const body = await readJson<Record<string, unknown>>(request);
+    const body = await validatedJson(request, schemas.suggestionUpdate);
     const item = domainRepository.updateSuggestion(suggestionId, body);
     audit(
       "suggestion.updated",
@@ -116,6 +138,7 @@ export async function handleHttpRoute(
     return json(item);
   }
   if (suggestionId && method === "DELETE") {
+    await validatedJson(request, schemas.confirmedDelete);
     domainRepository.deleteSuggestion(suggestionId);
     audit("suggestion.deleted", "suggestions", suggestionId);
     return json({ ok: true });
@@ -125,18 +148,24 @@ export async function handleHttpRoute(
     if (method === "GET")
       return json({ categories: promotionCategories, offers: domainRepository.promotions() });
     if (method === "POST") {
-      const item = domainRepository.createPromotion(await readJson(request));
+      const item = domainRepository.createPromotion(
+        await validatedJson(request, schemas.promotionCreate),
+      );
       audit("promotion.created", "promotions", item.id, "confirmed");
       return json(item, { status: 201 });
     }
   }
   const promotionId = resourceId(path, "promotions");
   if (promotionId && (method === "PATCH" || method === "PUT")) {
-    const item = domainRepository.updatePromotion(promotionId, await readJson(request));
+    const item = domainRepository.updatePromotion(
+      promotionId,
+      await validatedJson(request, schemas.promotionUpdate),
+    );
     audit("promotion.updated", "promotions", promotionId);
     return json(item);
   }
   if (promotionId && method === "DELETE") {
+    await validatedJson(request, schemas.confirmedDelete);
     domainRepository.deletePromotion(promotionId);
     audit("promotion.deleted", "promotions", promotionId);
     return json({ ok: true });
@@ -145,14 +174,16 @@ export async function handleHttpRoute(
   if (path === "/api/automations") {
     if (method === "GET") return json(domainRepository.automations());
     if (method === "POST") {
-      const item = domainRepository.createAutomation(await readJson(request));
+      const item = domainRepository.createAutomation(
+        await validatedJson(request, schemas.automationCreate),
+      );
       audit("automation.created", "automations", item.id, "draft");
       return json(item, { status: 201 });
     }
   }
   const automationId = resourceId(path, "automations");
   if (automationId && (method === "PATCH" || method === "PUT")) {
-    const body = await readJson<Record<string, unknown>>(request);
+    const body = await validatedJson(request, schemas.automationUpdate);
     const item = domainRepository.updateAutomation(automationId, body);
     audit(
       "automation.updated",
@@ -164,6 +195,7 @@ export async function handleHttpRoute(
     return json(item);
   }
   if (automationId && method === "DELETE") {
+    await validatedJson(request, schemas.confirmedDelete);
     domainRepository.deleteAutomation(automationId);
     audit("automation.deleted", "automations", automationId);
     return json({ ok: true });
@@ -172,14 +204,16 @@ export async function handleHttpRoute(
   if (path === "/api/permissions") {
     if (method === "GET") return json(domainRepository.permissions());
     if (method === "POST") {
-      const item = domainRepository.createPermission(await readJson(request));
+      const item = domainRepository.createPermission(
+        await validatedJson(request, schemas.permissionCreate),
+      );
       audit("permission.created", "permissions", item.id);
       return json(item, { status: 201 });
     }
   }
   const permissionId = resourceId(path, "permissions");
   if (permissionId && (method === "PATCH" || method === "PUT")) {
-    const body = await readJson<Record<string, unknown>>(request);
+    const body = await validatedJson(request, schemas.permissionUpdate);
     const item = domainRepository.updatePermission(permissionId, body);
     audit(
       "permission.updated",
@@ -191,6 +225,7 @@ export async function handleHttpRoute(
     return json(item);
   }
   if (permissionId && method === "DELETE") {
+    await validatedJson(request, schemas.confirmedDelete);
     domainRepository.deletePermission(permissionId);
     audit("permission.deleted", "permissions", permissionId);
     return json({ ok: true });
@@ -198,41 +233,36 @@ export async function handleHttpRoute(
 
   if (path === "/api/security-settings") {
     if (method === "GET") return json(domainRepository.securitySettings());
-    if (method === "POST") {
-      const item = domainRepository.createSecuritySetting(await readJson(request));
-      audit("security_setting.created", "security_settings", item.id);
-      return json(item, { status: 201 });
-    }
+    if (method === "POST")
+      throw new ApiError(
+        409,
+        "SECURITY_POLICY_READ_ONLY",
+        "Políticas de segurança são somente leitura.",
+      );
   }
   const securityId = resourceId(path, "security-settings");
   if (securityId && (method === "PATCH" || method === "PUT")) {
-    const body = await readJson<Record<string, unknown>>(request);
-    const item = domainRepository.updateSecuritySetting(securityId, body);
-    audit(
-      "security_setting.updated",
-      "security_settings",
-      securityId,
-      confirmation(body.confirmationStatus),
-      { enabled: body.enabled },
+    await validatedJson(request, schemas.securityUpdate);
+    throw new ApiError(
+      409,
+      "SECURITY_POLICY_READ_ONLY",
+      "Políticas de segurança são somente leitura.",
     );
-    return json(item);
   }
   if (securityId && method === "DELETE") {
-    domainRepository.deleteSecuritySetting(securityId);
-    audit("security_setting.deleted", "security_settings", securityId);
-    return json({ ok: true });
+    await validatedJson(request, schemas.confirmedDelete);
+    throw new ApiError(
+      409,
+      "SECURITY_POLICY_READ_ONLY",
+      "Políticas de segurança são somente leitura.",
+    );
   }
 
   if (path === "/api/chat") {
     if (method === "GET") return json(domainRepository.chatMessages());
     if (method === "POST") {
-      const body = await readJson<{
-        text?: string;
-        sessionId?: string;
-        confirmationStatus?: "draft" | "pending_confirmation" | "confirmed";
-      }>(request);
-      const text = body.text?.trim();
-      if (!text) throw new ApiError(400, "TEXT_REQUIRED", "A mensagem não pode ficar vazia.");
+      const body = await validatedJson(request, schemas.chatCreate);
+      const text = body.text;
       const userMessage = domainRepository.addChatMessage({
         role: "user",
         text,
@@ -257,12 +287,13 @@ export async function handleHttpRoute(
   }
   const chatId = resourceId(path, "chat");
   if (chatId && (method === "PATCH" || method === "PUT")) {
-    const body = await readJson<Record<string, unknown>>(request);
+    const body = await validatedJson(request, schemas.chatUpdate);
     const item = domainRepository.updateChatMessage(chatId, body);
     audit("chat.message.updated", "chat_messages", chatId, confirmation(body.confirmationStatus));
     return json(item);
   }
   if (chatId && method === "DELETE") {
+    await validatedJson(request, schemas.confirmedDelete);
     domainRepository.deleteChatMessage(chatId);
     audit("chat.message.deleted", "chat_messages", chatId);
     return json({ ok: true });
@@ -276,7 +307,8 @@ export async function handleHttpRoute(
   }
   if (method === "GET" && path === "/api/devices") return json(deviceService.listDevices());
   if (method === "POST" && path === "/api/pairing-tokens") {
-    const body = await readJson<{ ttlSeconds?: number }>(request);
+    enforceRateLimit("pairingToken", context.clientIp);
+    const body = await validatedJson(request, schemas.pairingTokenCreate);
     const ttlSeconds = process.env.NODE_ENV === "test" ? body.ttlSeconds : undefined;
     return json(await deviceService.createPairingToken(auth.user.id, ttlSeconds), {
       status: 201,
@@ -289,32 +321,44 @@ export async function handleHttpRoute(
     return json({ ok: true });
   }
   if (method === "POST" && path === "/api/devices/pairing-code") {
+    enforceRateLimit("pairingToken", context.clientIp);
     return json(await deviceService.createPairingToken(auth.user.id), { status: 201 });
   }
   if (method === "POST" && path === "/api/devices/claim") {
-    return json(await deviceService.claimPairingToken(await readJson(request)), { status: 201 });
+    enforceRateLimit("pairingClaim", context.clientIp);
+    return json(
+      await deviceService.claimPairingToken(await validatedJson(request, schemas.pairingClaim)),
+      { status: 201 },
+    );
   }
   const approveDeviceId = path.match(/^\/api\/devices\/([^/]+)\/approve$/)?.[1];
-  if (approveDeviceId && method === "POST")
+  if (approveDeviceId && method === "POST") {
+    await validatedJson(request, schemas.confirmedDelete);
     return json(deviceService.approveDevice(auth.user.id, approveDeviceId));
+  }
   const deviceId = resourceId(path, "devices");
   if (deviceId && method === "DELETE") {
+    await validatedJson(request, schemas.confirmedDelete);
     return json(deviceService.revokeDevice(auth.user.id, deviceId));
   }
   if (method === "GET" && path === "/api/tasks") return json(taskRepository.listTasks());
   if (method === "POST" && path === "/api/tasks") {
-    const item = taskRepository.createTask(await readJson(request));
+    const item = taskRepository.createTask(await validatedJson(request, schemas.taskCreate));
     audit("task.created", "tasks", item.id, "draft");
     return json(item, { status: 201 });
   }
   const taskId = resourceId(path, "tasks");
   if (taskId && (method === "PATCH" || method === "PUT")) {
-    const item = taskRepository.updateTask(taskId, await readJson(request));
+    const item = taskRepository.updateTask(
+      taskId,
+      await validatedJson(request, schemas.taskUpdate),
+    );
     if (!item) throw new ApiError(404, "NOT_FOUND", "Tarefa não encontrada.");
     audit("task.updated", "tasks", taskId);
     return json(item);
   }
   if (taskId && method === "DELETE") {
+    await validatedJson(request, schemas.confirmedDelete);
     taskRepository.deleteTask(taskId);
     audit("task.deleted", "tasks", taskId, "confirmed");
     return json({ ok: true });
@@ -322,14 +366,7 @@ export async function handleHttpRoute(
   if (method === "GET" && path === "/api/notifications")
     return json(taskRepository.listNotifications());
   if (method === "POST" && path === "/api/notifications") {
-    const body = await readJson<{
-      title?: string;
-      description?: string;
-      type?: string;
-      scheduledFor?: string;
-    }>(request);
-    if (!body.title || !body.description)
-      throw new ApiError(400, "INVALID_NOTIFICATION", "Título e descrição são obrigatórios.");
+    const body = await validatedJson(request, schemas.notificationCreate);
     const item = nativeRepository.createNotification({
       title: body.title,
       description: body.description,
@@ -349,7 +386,10 @@ export async function handleHttpRoute(
   if (path === "/api/preferences/notifications") {
     if (method === "GET") return json(nativeRepository.preferences(auth.user.id));
     if (method === "PUT" || method === "PATCH") {
-      const item = nativeRepository.savePreferences(auth.user.id, await readJson(request));
+      const item = nativeRepository.savePreferences(
+        auth.user.id,
+        await validatedJson(request, schemas.preferences),
+      );
       audit(
         "notification_preferences.updated",
         "notification_preferences",
@@ -362,12 +402,7 @@ export async function handleHttpRoute(
   }
 
   if (method === "POST" && path === "/api/native-actions") {
-    const body = await readJson<{
-      action?: string;
-      payload?: unknown;
-      confirmationStatus?: string;
-    }>(request);
-    if (!body.action) throw new ApiError(400, "ACTION_REQUIRED", "A ação nativa é obrigatória.");
+    const body = await validatedJson(request, schemas.nativeAction);
     const unavailable = new Set([
       "send_message",
       "purchase",
@@ -412,17 +447,16 @@ export async function handleHttpRoute(
   }
 
   if (method === "POST" && path === "/api/action-logs") {
-    const body = await readJson<{
-      action?: string;
-      entityType?: string;
-      entityId?: string;
-      sensitivity?: string;
-      confirmationStatus?: "draft" | "pending_confirmation" | "confirmed";
-      details?: unknown;
-    }>(request);
-    if (!body.action) throw new ApiError(400, "ACTION_REQUIRED", "A ação é obrigatória.");
+    const body = await validatedJson(request, schemas.clientNote);
     return json(
-      domainRepository.logAction({ ...body, action: body.action, userId: auth.user.id }),
+      domainRepository.logAction({
+        userId: auth.user.id,
+        action: "client.note.created",
+        entityType: "client_notes",
+        sensitivity: "normal",
+        confirmationStatus: "draft",
+        details: { source: "client", message: body.message, context: body.context },
+      }),
       { status: 201 },
     );
   }

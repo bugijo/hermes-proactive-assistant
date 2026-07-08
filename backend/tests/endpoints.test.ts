@@ -29,6 +29,8 @@ beforeAll(async () => {
       HERMES_DB_PATH: dbPath,
       HERMES_SEED: "false",
       NODE_ENV: "test",
+      HERMES_GENERAL_RATE_LIMIT_MAX: "1000",
+      HERMES_LOGIN_RATE_LIMIT_MAX: "5",
     },
     stdout: "ignore",
     stderr: "inherit",
@@ -113,6 +115,95 @@ describe("API local Hermes Mobile", () => {
     );
     expect(invalid.response.status).toBe(401);
     expect(invalid.body.error.code).toBe("INVALID_CREDENTIALS");
+  });
+
+  test("chat funciona e persiste mensagens sem seed", async () => {
+    const sent = await api("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({ text: "Mensagem em banco limpo", confirmationStatus: "draft" }),
+    });
+    expect(sent.response.status).toBe(201);
+    expect(sent.body.data.role).toBe("hermes");
+
+    const stored = await api("/api/chat");
+    expect(stored.response.status).toBe(200);
+    expect(
+      stored.body.data.some(
+        (message: { role: string; text: string }) =>
+          message.role === "user" && message.text === "Mensagem em banco limpo",
+      ),
+    ).toBe(true);
+    expect(stored.body.data.some((message: { role: string }) => message.role === "hermes")).toBe(
+      true,
+    );
+  });
+
+  test("payloads inválidos retornam 400 sem gravar", async () => {
+    const before = await api("/api/promotions");
+    const cases = [
+      ["/api/suggestions", { title: "Sem tipo" }],
+      ["/api/promotions", { name: "Preço inválido", category: "QA", price: "dez" }],
+      ["/api/automations", { name: "Automação", description: "Inválida", enabled: "false" }],
+      ["/api/permissions", {}],
+      ["/api/chat", { text: "   " }],
+      ["/api/native-actions", { action: "qualquer_coisa" }],
+    ] as const;
+
+    for (const [path, body] of cases) {
+      const result = await api(path, { method: "POST", body: JSON.stringify(body) });
+      expect(result.response.status).toBe(400);
+      expect(result.body.error.code).toBe("INVALID_PAYLOAD");
+    }
+
+    const invalidPreference = await api("/api/preferences/notifications", {
+      method: "PUT",
+      body: JSON.stringify({ quietStart: "banana" }),
+    });
+    expect(invalidPreference.response.status).toBe(400);
+
+    const after = await api("/api/promotions");
+    expect(after.body.data.offers).toHaveLength(before.body.data.offers.length);
+  });
+
+  test("mutação sensível sem confirmação não altera o SQLite", async () => {
+    const created = await api("/api/suggestions", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "task",
+        title: "Protegida",
+        description: "Não deve ser apagada sem confirmação",
+      }),
+    });
+    const id = created.body.data.id as string;
+
+    const unconfirmedApproval = await api(`/api/suggestions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ state: "approved" }),
+    });
+    expect(unconfirmedApproval.response.status).toBe(400);
+
+    const unconfirmedDelete = await api(`/api/suggestions/${id}`, { method: "DELETE" });
+    expect(unconfirmedDelete.response.status).toBe(400);
+    const stored = await api("/api/suggestions");
+    expect(stored.body.data.some((item: { id: string }) => item.id === id)).toBe(true);
+  });
+
+  test("auth e pairing validam payloads runtime", async () => {
+    const invalidLogin = await api(
+      "/api/auth/login",
+      { method: "POST", body: JSON.stringify({ email: "inválido", password: "senha" }) },
+      false,
+    );
+    expect(invalidLogin.response.status).toBe(400);
+    expect(invalidLogin.body.error.code).toBe("INVALID_PAYLOAD");
+
+    const invalidPairing = await api(
+      "/api/pairing/claim",
+      { method: "POST", body: JSON.stringify({ code: "123" }) },
+      false,
+    );
+    expect(invalidPairing.response.status).toBe(400);
+    expect(invalidPairing.body.error.code).toBe("INVALID_PAYLOAD");
   });
 
   test("cria e altera sugestão e gera logs", async () => {
@@ -211,9 +302,17 @@ describe("API local Hermes Mobile", () => {
       false,
     );
     expect(reused.response.status).toBe(410);
-    const approved = await api(`/api/devices/${deviceId}/approve`, { method: "POST" });
+    const approved = await api(`/api/devices/${deviceId}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ confirmationStatus: "confirmed" }),
+    });
     expect(approved.body.data.status).toBe("offline");
-    const revoked = await api(`/api/devices/${deviceId}`, { method: "DELETE" });
+    const unconfirmedRevoke = await api(`/api/devices/${deviceId}`, { method: "DELETE" });
+    expect(unconfirmedRevoke.response.status).toBe(400);
+    const revoked = await api(`/api/devices/${deviceId}`, {
+      method: "DELETE",
+      body: JSON.stringify({ confirmationStatus: "confirmed" }),
+    });
     expect(revoked.body.data.ok).toBe(true);
     const devices = await api("/api/devices");
     expect(devices.body.data.find((item: { id: string }) => item.id === deviceId).status).toBe(
@@ -257,5 +356,58 @@ describe("API local Hermes Mobile", () => {
     });
     expect(forbidden.response.status).toBe(403);
     expect(forbidden.body.error.code).toBe("ACTION_NOT_AVAILABLE");
+  });
+
+  test("políticas de segurança são somente leitura", async () => {
+    const updated = await api("/api/security-settings/sec1", {
+      method: "PATCH",
+      body: JSON.stringify({ enabled: false, confirmationStatus: "confirmed" }),
+    });
+    expect(updated.response.status).toBe(409);
+    expect(updated.body.error.code).toBe("SECURITY_POLICY_READ_ONLY");
+  });
+
+  test("cliente não cria evento forense arbitrário", async () => {
+    const forged = await api("/api/action-logs", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "device.approved",
+        sensitivity: "high",
+        confirmationStatus: "confirmed",
+      }),
+    });
+    expect(forged.response.status).toBe(400);
+    expect(forged.body.error.code).toBe("INVALID_PAYLOAD");
+
+    const note = await api("/api/action-logs", {
+      method: "POST",
+      body: JSON.stringify({ message: "Observação local", context: { screen: "security" } }),
+    });
+    expect(note.response.status).toBe(201);
+    const logs = await api("/api/action-logs");
+    expect(
+      logs.body.data.some((log: { action: string }) => log.action === "client.note.created"),
+    ).toBe(true);
+  });
+
+  test("login repetido recebe 429 estruturado", async () => {
+    let limited: Awaited<ReturnType<typeof api>> | undefined;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const result = await api(
+        "/api/auth/login",
+        {
+          method: "POST",
+          body: JSON.stringify({ email: "local@example.test", password: "senha-incorreta" }),
+        },
+        false,
+      );
+      if (result.response.status === 429) {
+        limited = result;
+        break;
+      }
+    }
+    expect(limited?.body.error.code).toBe("RATE_LIMITED");
+    expect(limited?.body.error.retryAfter).toBeGreaterThan(0);
+    expect(Number(limited?.response.headers.get("Retry-After"))).toBeGreaterThan(0);
   });
 });
